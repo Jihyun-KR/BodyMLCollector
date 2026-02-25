@@ -2,131 +2,428 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Auto Capture Body Measurement</title>
+<title>Body Measurement</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
 
 <style>
-body{
-  margin:0;
-  font-family: 'Segoe UI', sans-serif;
-  background:#f2f5f9;
-  text-align:center;
-  color:#333;
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-.header{
-  padding:20px 10px 10px;
-}
-
-.header h2{
-  margin:0;
-  font-weight:600;
-}
-
-.sub{
-  font-size:12px;
-  color:#777;
-  margin-top:4px;
-}
-
-.card{
-  background:white;
-  max-width:750px;
-  margin:20px auto;
-  padding:25px;
-  border-radius:16px;
-  box-shadow:0 8px 20px rgba(0,0,0,0.08);
-}
-
-.controls{
-  margin-bottom:15px;
-}
-
-select, button{
-  padding:10px 14px;
-  margin:6px;
-  border-radius:8px;
-  border:1px solid #d0d7de;
-  font-size:14px;
-}
-
-button{
-  background:#1976d2;
-  color:white;
-  border:none;
-  cursor:pointer;
-}
-
-button:hover{
-  background:#125aa3;
-}
-
-canvas{
-  width:100%;
-  max-width:500px;
-  border-radius:12px;
-  border:2px solid #1976d2;
-}
-
-#countdown{
-  position:absolute;
-  top:45%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  font-size:70px;
-  color:#d32f2f;
-  font-weight:bold;
-}
-
-#result{
-  margin-top:20px;
-  font-size:18px;
-  line-height:1.6;
-}
-
-@media(max-width:600px){
-  .card{
-    margin:10px;
-    padding:18px;
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: rgba(255,255,255,0.07);
+    --accent: #c8ff00;
+    --accent2: #00e5ff;
+    --text: #e8e8f0;
+    --muted: #555570;
   }
-}
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,255,0,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,255,0,0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; width: 100%; max-width: 780px; }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  h1 span { color: var(--accent); }
+
+  .badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 2px;
+    letter-spacing: 0.1em;
+  }
+
+  /* Controls row */
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  select {
+    flex: 1;
+    min-width: 180px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  select:hover, select:focus { border-color: var(--accent2); }
+
+  .btn {
+    padding: 10px 22px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:hover { opacity: 0.85; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0a0f;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+  .btn-csv {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Main layout */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 640px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Camera container */
+  .camera-wrap {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #050508;
+    aspect-ratio: 640/720;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  video { display: none; }
+
+  /* Countdown overlay */
+  #countdown {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(64px, 15vw, 120px);
+    font-weight: 700;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(200,255,0,0.5);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #countdown.visible { opacity: 1; }
+
+  /* Corner decorations */
+  .corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--accent2);
+    border-style: solid;
+    opacity: 0.7;
+  }
+  .corner-tl { top: 10px; left: 10px; border-width: 2px 0 0 2px; }
+  .corner-tr { top: 10px; right: 10px; border-width: 2px 2px 0 0; }
+  .corner-bl { bottom: 10px; left: 10px; border-width: 0 0 2px 2px; }
+  .corner-br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+
+  /* Status bar */
+  .status-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 14px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  #statusText { color: var(--accent2); }
+
+  /* Side panel */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .panel-title {
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  /* Metric cards */
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 18px;
+    transition: border-color 0.3s;
+  }
+
+  .metric-card.active {
+    border-color: rgba(200,255,0,0.3);
+  }
+
+  .metric-label {
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .metric-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .metric-dot.h { background: var(--accent); }
+  .metric-dot.s { background: var(--accent2); }
+  .metric-dot.p { background: #ff6eb4; }
+
+  .metric-value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .metric-value .unit {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-left: 4px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .metric-empty {
+    font-size: 22px;
+    color: var(--border);
+    letter-spacing: 0.1em;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* History */
+  .history-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+
+  #historyList {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .history-item {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 6px 10px;
+    border-left: 2px solid var(--border);
+    line-height: 1.6;
+  }
+
+  .history-item .hi-num {
+    color: var(--accent);
+    margin-right: 6px;
+  }
+
+  .empty-history {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--border);
+    text-align: center;
+    padding: 16px 0;
+  }
+
+  .csv-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h2>📏 Auto Capture Body Measurement</h2>
-  <div class="sub">Developed by Jihyun Noh</div>
-</div>
+<div class="wrapper">
 
-<div class="card">
+  <header>
+    <div class="logo">MediaPipe · Pose Detection</div>
+    <h1>Body<span>Scan</span></h1>
+    <div class="badge">BETA</div>
+  </header>
 
-<div class="controls">
-<select id="cameraSelect"></select>
-<button onclick="startCamera()">카메라 시작</button>
-<button onclick="resetCapture()">재측정</button>
-<button onclick="downloadCSV()">CSV 다운로드</button>
-</div>
+  <div class="controls">
+    <select id="cameraSelect"></select>
+    <button class="btn btn-primary" onclick="startCamera()">Start Camera</button>
+    <button class="btn btn-ghost" onclick="resetCapture()">Re-measure</button>
+  </div>
 
-<div style="position:relative; display:inline-block;">
-<video id="video" autoplay playsinline style="display:none;"></video>
-<canvas id="canvas" width="640" height="720"></canvas>
-<div id="countdown"></div>
-</div>
+  <div class="main-grid">
 
-<div id="result"></div>
+    <!-- Camera -->
+    <div class="camera-wrap">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas" width="640" height="720"></canvas>
+      <div class="corner corner-tl"></div>
+      <div class="corner corner-tr"></div>
+      <div class="corner corner-bl"></div>
+      <div class="corner corner-br"></div>
+      <div id="countdown"></div>
+      <div class="status-bar">
+        <span>640 × 720</span>
+        <span id="statusText">WAITING FOR CAMERA</span>
+      </div>
+    </div>
+
+    <!-- Side panel -->
+    <div class="side-panel">
+
+      <div>
+        <div class="panel-title">Measurements</div>
+
+        <div class="metric-card" id="cardH">
+          <div class="metric-label"><span class="metric-dot h"></span>Height</div>
+          <div class="metric-value" id="valH"><span class="metric-empty">—</span></div>
+        </div>
+      </div>
+
+      <div class="metric-card" id="cardS">
+        <div class="metric-label"><span class="metric-dot s"></span>Shoulder Width</div>
+        <div class="metric-value" id="valS"><span class="metric-empty">—</span></div>
+      </div>
+
+      <div class="metric-card" id="cardP">
+        <div class="metric-label"><span class="metric-dot p"></span>Hip Width</div>
+        <div class="metric-value" id="valP"><span class="metric-empty">—</span></div>
+      </div>
+
+      <div class="history-section">
+        <div class="panel-title">Capture History</div>
+        <div id="historyList">
+          <div class="empty-history">No data yet</div>
+        </div>
+      </div>
+
+      <div class="csv-row">
+        <button class="btn btn-csv" onclick="downloadCSV()">↓ Export CSV</button>
+      </div>
+
+    </div>
+  </div>
 
 </div>
 
 <script>
-/* === 기존 JS 그대로 유지 === */
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const cameraSelect = document.getElementById("cameraSelect");
+const countdownEl = document.getElementById("countdown");
+const statusText = document.getElementById("statusText");
 
 let stream;
 let prevLandmarks = null;
@@ -134,6 +431,9 @@ let stableStart = null;
 let countdownStart = null;
 let captured = false;
 let resultData = [];
+let captureCount = 0;
+
+function setStatus(msg) { statusText.textContent = msg; }
 
 function calculateDistance(p1, p2, w, h){
   return Math.sqrt(
@@ -155,29 +455,45 @@ async function getCameras(){
 }
 
 async function startCamera(){
-  if(stream){
-    stream.getTracks().forEach(track=>track.stop());
-  }
-
+  if(stream) stream.getTracks().forEach(t=>t.stop());
   stream = await navigator.mediaDevices.getUserMedia({
-    video:{ deviceId:{ exact:cameraSelect.value } }
+    video:{ deviceId:{ exact: cameraSelect.value } }
   });
-
   video.srcObject = stream;
+  setStatus("INITIALIZING...");
 }
 
 function resetCapture(){
-  captured=false;
-  stableStart=null;
-  countdownStart=null;
-  prevLandmarks=null;
-  document.getElementById("countdown").innerText="";
-  document.getElementById("result").innerHTML="";
+  captured=false; stableStart=null; countdownStart=null; prevLandmarks=null;
+  countdownEl.textContent=""; countdownEl.classList.remove("visible");
+  setVal("valH","—"); setVal("valS","—"); setVal("valP","—");
+  ["cardH","cardS","cardP"].forEach(id=>document.getElementById(id).classList.remove("active"));
+  setStatus("READY");
+}
+
+function setVal(id, val, unit="px"){
+  const el = document.getElementById(id);
+  if(val === "—"){
+    el.innerHTML = `<span class="metric-empty">—</span>`;
+  } else {
+    el.innerHTML = `${val}<span class="unit">${unit}</span>`;
+    document.getElementById("card"+id.slice(-1)).classList.add("active");
+  }
+}
+
+function addHistory(h, s, p){
+  captureCount++;
+  const list = document.getElementById("historyList");
+  const empty = list.querySelector(".empty-history");
+  if(empty) empty.remove();
+  const div = document.createElement("div");
+  div.className = "history-item";
+  div.innerHTML = `<span class="hi-num">#${captureCount}</span>H:${h} · S:${s} · P:${p}`;
+  list.prepend(div);
 }
 
 const pose = new Pose({
-  locateFile:(file)=>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
 
 pose.setOptions({
@@ -188,96 +504,110 @@ pose.setOptions({
 });
 
 pose.onResults(results=>{
-
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
-  ctx.strokeStyle="blue";
-  ctx.lineWidth=3;
-  ctx.strokeRect(
-    canvas.width*0.3,
-    canvas.height*0.1,
-    canvas.width*0.4,
-    canvas.height*0.85
+  // Subtle vignette
+  const vg = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2, canvas.height*0.3,
+    canvas.width/2, canvas.height/2, canvas.height*0.8
   );
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Guide box
+  ctx.strokeStyle="rgba(200,255,0,0.5)";
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([6,4]);
+  ctx.strokeRect(
+    canvas.width*0.3, canvas.height*0.1,
+    canvas.width*0.4, canvas.height*0.85
+  );
+  ctx.setLineDash([]);
 
   if(results.poseLandmarks){
+    setStatus("POSE DETECTED");
 
-    drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS);
-    drawLandmarks(ctx, results.poseLandmarks);
+    drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {
+      color: 'rgba(0,229,255,0.5)', lineWidth: 1.5
+    });
+    drawLandmarks(ctx, results.poseLandmarks, {
+      color: 'rgba(200,255,0,0.9)', lineWidth: 1, radius: 3
+    });
 
     const landmarks = results.poseLandmarks;
-
     let diff = 999;
     if(prevLandmarks){
       diff = landmarks.reduce((sum,p,i)=>
-        sum + Math.abs(p.x-prevLandmarks[i].x)
-            + Math.abs(p.y-prevLandmarks[i].y),0);
+        sum + Math.abs(p.x-prevLandmarks[i].x) + Math.abs(p.y-prevLandmarks[i].y), 0);
     }
 
     if(diff < 0.01){
-
       if(!stableStart) stableStart = Date.now();
-
       if(Date.now()-stableStart > 2000){
-
-        if(!countdownStart) countdownStart=Date.now();
-
+        if(!countdownStart) countdownStart = Date.now();
         let remaining = 5 - Math.floor((Date.now()-countdownStart)/1000);
-        document.getElementById("countdown").innerText =
-          remaining>0 ? remaining : "";
+        if(remaining > 0){
+          countdownEl.textContent = remaining;
+          countdownEl.classList.add("visible");
+          setStatus(`CAPTURING IN ${remaining}s...`);
+        } else {
+          countdownEl.classList.remove("visible");
+        }
 
-        if(remaining<=0 && !captured){
-
-          captured=true;
-
-          const w=canvas.width;
-          const h=canvas.height;
-
+        if(remaining <= 0 && !captured){
+          captured = true;
+          const w=canvas.width, h=canvas.height;
           const shoulder = calculateDistance(landmarks[11],landmarks[12],w,h);
           const hip = calculateDistance(landmarks[23],landmarks[24],w,h);
           const ankleY=((landmarks[27].y+landmarks[28].y)/2)*h;
           const height=Math.abs((landmarks[0].y*h)-ankleY);
 
-          document.getElementById("result").innerHTML=
-            `📏 신장(px): ${height.toFixed(2)}<br>
-             📐 어깨(px): ${shoulder.toFixed(2)}<br>
-             🦴 골반(px): ${hip.toFixed(2)}`;
+          const hv=height.toFixed(2), sv=shoulder.toFixed(2), pv=hip.toFixed(2);
 
-          resultData.push([
-            height.toFixed(2),
-            shoulder.toFixed(2),
-            hip.toFixed(2)
-          ]);
+          document.getElementById("cardH").classList.add("active");
+          document.getElementById("cardS").classList.add("active");
+          document.getElementById("cardP").classList.add("active");
+
+          document.getElementById("valH").innerHTML = `${hv}<span class="unit">px</span>`;
+          document.getElementById("valS").innerHTML = `${sv}<span class="unit">px</span>`;
+          document.getElementById("valP").innerHTML = `${pv}<span class="unit">px</span>`;
+
+          addHistory(hv, sv, pv);
+          resultData.push([hv, sv, pv]);
+          setStatus("CAPTURED ✓");
         }
       }
-    }else{
-      stableStart=null;
-      countdownStart=null;
-      document.getElementById("countdown").innerText="";
+    } else {
+      stableStart=null; countdownStart=null;
+      countdownEl.classList.remove("visible");
+      setStatus("STABILIZING...");
     }
 
-    prevLandmarks=landmarks;
+    prevLandmarks = landmarks;
+  } else {
+    setStatus("NO POSE FOUND");
   }
 
   requestAnimationFrame(processFrame);
 });
 
 async function processFrame(){
-  await pose.send({image:video});
+  await pose.send({image: video});
 }
 
-video.addEventListener("loadeddata",()=>processFrame());
+video.addEventListener("loadeddata", ()=>{ setStatus("READY"); processFrame(); });
 
 function downloadCSV(){
+  if(!resultData.length) return;
   let csv="신장(px),어깨(px),골반(px)\n";
   resultData.forEach(row=>csv+=row.join(",")+"\n");
   const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url;
-  a.download="body_measurements.csv";
-  a.click();
+  a.href=url; a.download="body_measurements.csv"; a.click();
 }
 
 getCameras();
