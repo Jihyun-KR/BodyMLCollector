@@ -2,205 +2,190 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Stable Body Measurement</title>
-
+<title>Auto Capture Body Measurement</title>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-body{
-  margin:0;
-  background:#111;
-  color:white;
-  font-family:sans-serif;
-  text-align:center;
-}
-video{display:none;}
-canvas{
-  width:95vw;
-  max-width:480px;
-  margin-top:20px;
-  border:2px solid #00e676;
-  border-radius:12px;
-}
-button{
-  margin:10px;
-  padding:10px 16px;
-  border:none;
-  border-radius:8px;
-  background:#00e676;
-  font-weight:bold;
-}
-#countdown{
-  position:absolute;
-  top:50%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  font-size:80px;
-  color:#00e676;
-}
-.wrapper{
-  position:relative;
-  display:inline-block;
-}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:#0f0f0f;color:#f0f0f0;
+    font-family:'Inter',sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;
+    align-items:center;padding:32px 16px;
+  }
+  h2{font-size:22px;font-weight:700;margin-bottom:20px;}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+  select,button{padding:9px 14px;border-radius:8px;font-family:'Inter';}
+  select{background:#1e1e1e;border:1px solid #333;color:#fff;}
+  button{cursor:pointer;font-weight:600;border:none;}
+  .btn-start{background:#00e676;color:#000;}
+  .btn-reset{background:#1e1e1e;color:#aaa;border:1px solid #333;}
+  .btn-csv{background:#1e1e1e;color:#00b0ff;border:1px solid #00b0ff;margin-top:14px;}
+  .camera-wrap{position:relative;border:2px solid #00e676;border-radius:12px;overflow:hidden;}
+  video{display:none;}
+  canvas{display:block;width:640px;height:720px;}
+  #countdown{
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-60%);
+    font-size:120px;font-weight:700;color:#00e676;
+  }
+  #result{margin-top:20px;display:flex;gap:16px;flex-wrap:wrap;justify-content:center;}
+  .metric-card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:14px 22px;min-width:140px;text-align:center;}
+  .metric-label{font-size:12px;color:#888;margin-bottom:6px;}
+  .metric-value{font-size:26px;font-weight:700;}
+  .metric-value span{font-size:13px;color:#555;margin-left:2px;}
 </style>
 </head>
 <body>
 
-<h2>📏 Stable Body Measurement</h2>
-<button onclick="start()">카메라 시작</button>
-<button onclick="downloadCSV()">CSV 다운로드</button>
+<h2>📏 Body Measurement</h2>
 
-<div class="wrapper">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
+<div class="controls">
+  <select id="cameraSelect"></select>
+  <button class="btn-start" onclick="startCamera()">카메라 시작</button>
+  <button class="btn-reset" onclick="resetCapture()">재측정</button>
+</div>
+
+<div class="camera-wrap">
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="640" height="720"></canvas>
   <div id="countdown"></div>
 </div>
 
-<div id="result"></div>
+<div id="result">
+  <div class="metric-card"><div class="metric-label">신장</div><div class="metric-value" id="valH">—<span>px</span></div></div>
+  <div class="metric-card"><div class="metric-label">어깨</div><div class="metric-value" id="valS">—<span>px</span></div></div>
+  <div class="metric-card"><div class="metric-label">골반</div><div class="metric-value" id="valP">—<span>px</span></div></div>
+  <div class="metric-card"><div class="metric-label">가슴(겨드랑이)</div><div class="metric-value" id="valC">—<span>px</span></div></div>
+</div>
+
+<button class="btn-csv" onclick="downloadCSV()">CSV 다운로드</button>
 
 <script>
 const video=document.getElementById("video");
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
-const countdownEl=document.getElementById("countdown");
+const cameraSelect=document.getElementById("cameraSelect");
 
-let camera=null;
-let prevLandmarks=null;
-let stableStart=null;
-let countdownStart=null;
-let captured=false;
-let resultData=[];
+let stream,prevLandmarks=null,stableStart=null,countdownStart=null,captured=false,resultData=[];
+
+function calculateDistance(p1,p2,w,h){
+  return Math.sqrt(Math.pow((p1.x*w-p2.x*w),2)+Math.pow((p1.y*h-p2.y*h),2));
+}
+
+async function getCameras(){
+  const devices=await navigator.mediaDevices.enumerateDevices();
+  const cams=devices.filter(d=>d.kind==="videoinput");
+  cameraSelect.innerHTML="";
+  cams.forEach((cam,i)=>{
+    const option=document.createElement("option");
+    option.value=cam.deviceId;
+    option.text=cam.label||`Camera ${i+1}`;
+    cameraSelect.appendChild(option);
+  });
+}
+
+async function startCamera(){
+  if(stream){stream.getTracks().forEach(track=>track.stop());}
+  stream=await navigator.mediaDevices.getUserMedia({
+    video:{deviceId:{exact:cameraSelect.value}}
+  });
+  video.srcObject=stream;
+}
+
+function resetCapture(){
+  captured=false;stableStart=null;countdownStart=null;prevLandmarks=null;
+  document.getElementById("countdown").innerText="";
+  document.getElementById("valH").innerHTML="—<span>px</span>";
+  document.getElementById("valS").innerHTML="—<span>px</span>";
+  document.getElementById("valP").innerHTML="—<span>px</span>";
+  document.getElementById("valC").innerHTML="—<span>px</span>";
+}
 
 const pose=new Pose({
   locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
-
 pose.setOptions({
-  modelComplexity:1,
-  smoothLandmarks:true,
-  minDetectionConfidence:0.5,
-  minTrackingConfidence:0.5
+  modelComplexity:1,smoothLandmarks:true,
+  minDetectionConfidence:0.5,minTrackingConfidence:0.5
 });
 
 pose.onResults(results=>{
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(results.image,0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
-  if(!results.poseLandmarks) return;
+  // 파란색 가이드라인 박스
+  ctx.strokeStyle="#2979ff";
+  ctx.lineWidth=3;
+  ctx.strokeRect(
+    canvas.width*0.3, canvas.height*0.1,
+    canvas.width*0.4, canvas.height*0.85
+  );
 
-  const lm=results.poseLandmarks;
+  if(results.poseLandmarks){
+    drawConnectors(ctx,results.poseLandmarks,POSE_CONNECTIONS,{color:'rgba(0,230,118,0.5)',lineWidth:2});
+    drawLandmarks(ctx,results.poseLandmarks,{color:'#00e676',radius:3});
 
-  let diff=999;
-  if(prevLandmarks){
-    diff=lm.reduce((sum,p,i)=>
-      sum+Math.abs(p.x-prevLandmarks[i].x)+Math.abs(p.y-prevLandmarks[i].y),0);
-  }
-
-  if(diff<0.01){
-    if(!stableStart) stableStart=Date.now();
-
-    if(Date.now()-stableStart>2000){
-      if(!countdownStart) countdownStart=Date.now();
-
-      let remain=5-Math.floor((Date.now()-countdownStart)/1000);
-      countdownEl.innerText=remain>0?remain:"";
-
-      if(remain<=0 && !captured){
-        captured=true;
-
-        const w=canvas.width;
-        const h=canvas.height;
-
-        const shoulder=dist(lm[11],lm[12],w,h);
-        const hip=dist(lm[23],lm[24],w,h);
-        const ankleY=((lm[27].y+lm[28].y)/2)*h;
-        const height=Math.abs((lm[0].y*h)-ankleY);
-
-        const chestLeft={
-          x:(lm[11].x+lm[23].x)/2,
-          y:(lm[11].y+lm[23].y)/2
-        };
-        const chestRight={
-          x:(lm[12].x+lm[24].x)/2,
-          y:(lm[12].y+lm[24].y)/2
-        };
-        const chest=dist(chestLeft,chestRight,w,h);
-
-        const hv=height.toFixed(1);
-        const sv=shoulder.toFixed(1);
-        const pv=hip.toFixed(1);
-        const cv=chest.toFixed(1);
-
-        document.getElementById("result").innerHTML=
-          `신장: ${hv}px<br>
-           어깨: ${sv}px<br>
-           골반: ${pv}px<br>
-           가슴: ${cv}px`;
-
-        resultData.push([hv,sv,pv,cv]);
-      }
+    const landmarks=results.poseLandmarks;
+    let diff=999;
+    if(prevLandmarks){
+      diff=landmarks.reduce((sum,p,i)=>
+        sum+Math.abs(p.x-prevLandmarks[i].x)+Math.abs(p.y-prevLandmarks[i].y),0);
     }
-  }else{
-    stableStart=null;
-    countdownStart=null;
-    countdownEl.innerText="";
+
+    if(diff<0.01){
+      if(!stableStart)stableStart=Date.now();
+      if(Date.now()-stableStart>2000){
+        if(!countdownStart)countdownStart=Date.now();
+        let remaining=5-Math.floor((Date.now()-countdownStart)/1000);
+        document.getElementById("countdown").innerText=remaining>0?remaining:"";
+
+        if(remaining<=0&&!captured){
+          captured=true;
+          const w=canvas.width,h=canvas.height;
+          const shoulder=calculateDistance(landmarks[11],landmarks[12],w,h);
+          const hip=calculateDistance(landmarks[23],landmarks[24],w,h);
+          const ankleY=((landmarks[27].y+landmarks[28].y)/2)*h;
+          const height=Math.abs((landmarks[0].y*h)-ankleY);
+          const chestLeft={x:(landmarks[11].x+landmarks[23].x)/2,y:(landmarks[11].y+landmarks[23].y)/2};
+          const chestRight={x:(landmarks[12].x+landmarks[24].x)/2,y:(landmarks[12].y+landmarks[24].y)/2};
+          const chest=calculateDistance(chestLeft,chestRight,w,h);
+
+          const hv=height.toFixed(2),sv=shoulder.toFixed(2),pv=hip.toFixed(2),cv=chest.toFixed(2);
+          document.getElementById("valH").innerHTML=`${hv}<span>px</span>`;
+          document.getElementById("valS").innerHTML=`${sv}<span>px</span>`;
+          document.getElementById("valP").innerHTML=`${pv}<span>px</span>`;
+          document.getElementById("valC").innerHTML=`${cv}<span>px</span>`;
+          resultData.push([hv,sv,pv,cv]);
+        }
+      }
+    }else{
+      stableStart=null;countdownStart=null;
+      document.getElementById("countdown").innerText="";
+    }
+    prevLandmarks=landmarks;
   }
 
-  prevLandmarks=lm;
+  requestAnimationFrame(processFrame);
 });
 
-function dist(p1,p2,w,h){
-  return Math.sqrt(
-    Math.pow((p1.x*w-p2.x*w),2)+
-    Math.pow((p1.y*h-p2.y*h),2)
-  );
+async function processFrame(){
+  await pose.send({image:video});
 }
 
-async function start(){
-  if(location.protocol!=="https:" && location.hostname!=="localhost"){
-    alert("HTTPS 환경에서 실행하세요 (GitHub Pages 사용)");
-    return;
-  }
-
-  captured=false;
-  stableStart=null;
-  countdownStart=null;
-  prevLandmarks=null;
-
-  camera=new Camera(video,{
-    onFrame: async ()=>{
-      await pose.send({image:video});
-    },
-    width:720,
-    height:1280,
-    facingMode:"environment"
-  });
-
-  await camera.start();
-
-  canvas.width=video.videoWidth;
-  canvas.height=video.videoHeight;
-}
+video.addEventListener("loadeddata",()=>processFrame());
 
 function downloadCSV(){
-  if(resultData.length===0){
-    alert("저장된 데이터 없음");
-    return;
-  }
-
   let csv="신장(px),어깨(px),골반(px),가슴(px)\n";
-  resultData.forEach(r=>csv+=r.join(",")+"\n");
-
-  const blob=new Blob([csv],{type:"text/csv"});
+  resultData.forEach(row=>csv+=row.join(",")+"\n");
+  const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url;
-  a.download="body_measurements.csv";
-  a.click();
+  a.href=url;a.download="body_measurements.csv";a.click();
 }
-</script>
 
+getCameras();
+</script>
 </body>
 </html>
