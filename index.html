@@ -1,902 +1,460 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Body Type ML Data Collector</title>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Body Type ML Data Collector — 발표</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --pink:#f0006e;--cyan:#0099cc;--purple:#7c3aed;--yellow:#f59e0b;
-    --bg:#f5f3ff;--surface:#ffffff;--surface2:#ede9fe;
-    --border:#ddd6fe;--text:#1e1040;--muted:#7c6faa;
+  :root {
+    --pink:#f0006e; --cyan:#0077aa; --purple:#6d28d9;
+    --yellow:#d97706; --green:#059669;
+    --bg:#f5f3ff; --surface:#ffffff; --surface2:#ede9fe;
+    --border:#c4b5fd; --text:#0f0825; --muted:#4c3d8a;
   }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{
-    color:var(--text);
-    font-family:'DM Mono',monospace;
-    min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 16px;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #progress {
+    position: fixed; top: 0; left: 0; height: 4px;
+    background: linear-gradient(90deg, var(--pink), var(--purple), var(--cyan));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  #slides {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 44px 60px;
+    opacity: 0;
+    transform: translateX(60px);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
     background:
-      radial-gradient(ellipse 80% 40% at 10% 0%,rgba(240,0,110,0.10) 0%,transparent 55%),
-      radial-gradient(ellipse 60% 35% at 90% 100%,rgba(0,153,204,0.12) 0%,transparent 55%),
-      radial-gradient(ellipse 50% 50% at 50% 50%,rgba(124,58,237,0.07) 0%,transparent 70%),
-      linear-gradient(160deg,#f5f3ff 0%,#fdf4ff 40%,#f0f9ff 100%);
+      radial-gradient(ellipse 80% 40% at 10% 0%, rgba(240,0,110,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 35% at 90% 100%, rgba(0,153,204,0.08) 0%, transparent 55%),
+      linear-gradient(160deg, #f5f3ff 0%, #fdf4ff 50%, #f0f9ff 100%);
   }
-  h2{
-    font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
-    background:linear-gradient(90deg,var(--pink),var(--purple),var(--cyan));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-    margin-bottom:4px;letter-spacing:-0.5px;
-  }
-  .subtitle{font-size:11px;color:var(--muted);margin-bottom:20px;letter-spacing:0.5px;}
+  .slide.active { opacity: 1; transform: translateX(0); pointer-events: all; }
+  .slide.prev { opacity: 0; transform: translateX(-60px); }
 
-  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
-  select,button,input{padding:8px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;}
-  select,input{
-    background:var(--surface);border:1px solid var(--border);color:var(--text);
-    box-shadow:0 1px 3px rgba(124,58,237,0.08);
+  #nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 40px;
+    background: var(--surface);
+    border-top: 2px solid var(--border);
+    position: relative; z-index: 60;
   }
-  input::placeholder{color:var(--muted);}
-  button{cursor:pointer;font-weight:500;border:none;transition:all 0.15s;}
+  .nav-btn {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    color: var(--purple); padding: 8px 22px; border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover { background: var(--purple); color: #fff; border-color: var(--purple); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  #slideNum { font-size: 13px; color: var(--muted); font-weight: 600; }
 
-  .btn-start{
-    background:linear-gradient(135deg,var(--pink),var(--purple));
-    color:#fff;
-    box-shadow:0 4px 14px rgba(240,0,110,0.3);
+  /* ── Slide styles ── */
+  .tag {
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--purple); background: rgba(109,40,217,0.1);
+    border: 1.5px solid rgba(109,40,217,0.35);
+    padding: 5px 14px; border-radius: 20px; margin-bottom: 16px;
+    font-weight: 700;
   }
-  .btn-start:hover{box-shadow:0 6px 20px rgba(240,0,110,0.45);transform:translateY(-1px);}
-
-  .btn-reset{
-    background:var(--surface);color:var(--muted);
-    border:1px solid var(--border);
-    box-shadow:0 1px 3px rgba(124,58,237,0.08);
+  .slide-title {
+    font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800;
+    line-height: 1.15; text-align: center; margin-bottom: 14px;
+    color: var(--text);
   }
-  .btn-reset:hover{border-color:var(--purple);color:var(--purple);}
-
-  /* camera */
-  .camera-wrap{
-    position:relative;border-radius:14px;overflow:hidden;
-    border:1.5px solid transparent;
-    background:linear-gradient(var(--surface),var(--surface)) padding-box,
-               linear-gradient(135deg,var(--pink),var(--purple),var(--cyan)) border-box;
-    box-shadow:0 8px 40px rgba(124,58,237,0.15),0 2px 8px rgba(0,0,0,0.06);
+  .gradient-text {
+    background: linear-gradient(135deg, var(--pink), var(--purple), var(--cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
-  video{display:none;}
-  canvas{display:block;width:580px;height:652px;}
-  #countdown{
-    position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);
-    font-family:'Syne',sans-serif;font-size:110px;font-weight:800;
-    background:linear-gradient(135deg,var(--pink),var(--yellow));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-    filter:drop-shadow(0 0 16px rgba(240,0,110,0.4));
-  }
-  #statusBar{
-    position:absolute;bottom:0;left:0;right:0;
-    background:linear-gradient(0deg,rgba(245,243,255,0.92),transparent);
-    padding:16px 14px 8px;font-size:11px;color:var(--muted);
-    display:flex;justify-content:space-between;
-  }
-  #stabilityBar{height:3px;background:var(--border);border-radius:2px;margin-top:4px;}
-  #stabilityFill{
-    height:100%;width:0%;border-radius:2px;transition:width 0.2s;
-    background:linear-gradient(90deg,var(--pink),var(--cyan));
-    box-shadow:0 0 6px rgba(0,153,204,0.4);
+  .slide-sub {
+    font-size: 16px; color: var(--muted); text-align: center;
+    max-width: 600px; line-height: 1.8; font-weight: 500;
   }
 
-  /* Zoom */
-  .zoom-wrap{
-    display:flex;align-items:center;gap:10px;margin-bottom:14px;
-    background:var(--surface);border:1px solid var(--border);
-    border-radius:10px;padding:8px 14px;width:100%;max-width:580px;
-    box-shadow:0 1px 4px rgba(124,58,237,0.08);
+  .cards { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+  .card {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 22px 24px; min-width: 200px; max-width: 230px;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.1); transition: transform 0.2s;
   }
-  .zoom-label{font-size:11px;color:var(--muted);white-space:nowrap;}
-  .zoom-btn{
-    background:var(--surface2);border:1px solid var(--border);color:var(--muted);
-    padding:4px 10px;border-radius:6px;font-size:16px;cursor:pointer;line-height:1;
-    transition:all 0.15s;
-  }
-  .zoom-btn:hover{border-color:var(--purple);color:var(--purple);box-shadow:0 0 8px rgba(124,58,237,0.2);}
-  input[type=range]#zoomSlider{
-    flex:1;-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;
-    background:linear-gradient(to right,var(--purple) 0%,var(--purple) 50%,var(--border) 50%,var(--border) 100%);
-    outline:none;border:none;cursor:pointer;padding:0;
-  }
-  input[type=range]#zoomSlider::-webkit-slider-thumb{
-    -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
-    background:var(--purple);cursor:pointer;
-    box-shadow:0 0 0 3px rgba(124,58,237,0.2),0 2px 6px rgba(124,58,237,0.3);
-  }
-  #zoomValue{font-size:12px;color:var(--purple);font-weight:500;min-width:36px;text-align:right;}
+  .card:hover { transform: translateY(-4px); }
+  .card-icon { font-size: 30px; margin-bottom: 10px; }
+  .card-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; margin-bottom: 8px; color: var(--text); }
+  .card-desc { font-size: 12.5px; color: var(--muted); line-height: 1.7; font-weight: 500; }
 
-  /* Label row */
-  .label-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
-  .label-row label{font-size:11px;color:var(--muted);}
-  #recordCount{
-    font-size:11px;margin-left:8px;
-    background:linear-gradient(90deg,var(--pink),var(--purple));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-    font-weight:600;
+  .feat-list { list-style: none; margin-top: 10px; width: 100%; max-width: 720px; }
+  .feat-list li {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 11px 18px; margin-bottom: 8px;
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 14px; line-height: 1.6; font-weight: 500;
+    color: var(--text);
+  }
+  .feat-list li .num {
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 17px;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    min-width: 28px; padding-top: 1px;
   }
 
-  /* Metrics */
-  #result{margin:16px 0;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
-  .metric-card{
-    background:var(--surface);border:1px solid var(--border);
-    border-radius:10px;padding:10px 16px;min-width:110px;text-align:center;
-    box-shadow:0 2px 8px rgba(124,58,237,0.08);
-    transition:all 0.2s;
+  .stats { display: flex; gap: 18px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+  .stat {
+    text-align: center; background: var(--surface);
+    border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 16px 24px;
+    box-shadow: 0 2px 12px rgba(124,58,237,0.1);
   }
-  .metric-card:hover{
-    border-color:var(--purple);
-    box-shadow:0 6px 20px rgba(124,58,237,0.15);
-    transform:translateY(-2px);
+  .stat-num {
+    font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
-  .metric-label{font-size:10px;color:var(--muted);margin-bottom:4px;letter-spacing:0.5px;}
-  .metric-value{
-    font-family:'Syne',sans-serif;font-size:22px;font-weight:700;
-    background:linear-gradient(135deg,var(--pink),var(--purple));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  }
-  .metric-value span{font-size:10px;color:var(--muted);margin-left:2px;-webkit-text-fill-color:var(--muted);}
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 600; }
 
-  /* Tabs */
-  .tabs{display:flex;margin-top:20px;width:100%;max-width:900px;border-bottom:1px solid var(--border);}
-  .tab{
-    padding:8px 16px;font-size:11px;font-weight:500;color:var(--muted);
-    cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;
-    letter-spacing:0.3px;
+  .two-col { display: flex; gap: 26px; width: 100%; max-width: 820px; margin-top: 10px; }
+  .col { flex: 1; }
+  .col-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; margin-bottom: 10px; color: var(--purple); }
+  .col-item {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--text); margin-bottom: 7px;
+    display: flex; align-items: flex-start; gap: 10px;
+    font-weight: 500; line-height: 1.5;
   }
-  .tab:hover{color:var(--purple);}
-  .tab.active{color:var(--purple);border-bottom-color:var(--purple);}
-  .tab-content{display:none;width:100%;max-width:900px;margin-top:12px;}
-  .tab-content.active{display:block;}
-  .table-wrap{
-    max-height:240px;overflow-y:auto;
-    border:1px solid var(--border);border-radius:10px;
-  }
-  .table-wrap::-webkit-scrollbar{width:4px;}
-  .table-wrap::-webkit-scrollbar-track{background:var(--surface2);}
-  .table-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
-  table{width:100%;border-collapse:collapse;font-size:11px;}
-  th{
-    background:var(--surface2);color:var(--muted);
-    padding:7px 8px;text-align:center;position:sticky;top:0;
-    border-bottom:1px solid var(--border);letter-spacing:0.3px;
-  }
-  td{padding:4px 8px;text-align:center;border-top:1px solid var(--border);color:var(--text);}
-  tr:hover td{background:var(--surface2);}
-  .lm-name{text-align:left;color:var(--cyan);font-size:10px;}
-  .feat-name{text-align:left;color:var(--yellow);font-size:10px;}
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pink); flex-shrink: 0; margin-top: 5px; }
+  .dot.cyan { background: var(--cyan); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.green { background: var(--green); }
 
-  /* Download */
-  .dl-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px;margin-bottom:20px;}
-  .btn-dl{
-    padding:9px 18px;border-radius:8px;font-size:12px;font-weight:500;
-    cursor:pointer;border:none;transition:all 0.15s;font-family:'DM Mono',monospace;
+  .title-decoration {
+    position: absolute; width: 300px; height: 300px; border-radius: 50%;
+    background: linear-gradient(135deg, rgba(240,0,110,0.12), rgba(124,58,237,0.12));
+    filter: blur(60px);
   }
-  .btn-landmarks{
-    background:rgba(0,153,204,0.08);
-    color:var(--cyan);border:1px solid rgba(0,153,204,0.4);
-  }
-  .btn-landmarks:hover{background:rgba(0,153,204,0.15);box-shadow:0 4px 12px rgba(0,153,204,0.2);transform:translateY(-1px);}
-  .btn-features{
-    background:rgba(245,158,11,0.08);
-    color:var(--yellow);border:1px solid rgba(245,158,11,0.4);
-  }
-  .btn-features:hover{background:rgba(245,158,11,0.15);box-shadow:0 4px 12px rgba(245,158,11,0.2);transform:translateY(-1px);}
-  .btn-all{
-    background:linear-gradient(135deg,var(--pink),var(--purple));
-    color:#fff;border:none;
-    box-shadow:0 4px 14px rgba(240,0,110,0.25);
-  }
-  .btn-all:hover{box-shadow:0 8px 24px rgba(240,0,110,0.4);transform:translateY(-1px);}
+  .td-1 { top: -80px; right: -80px; }
+  .td-2 { bottom: -80px; left: -80px; background: linear-gradient(135deg, rgba(0,153,204,0.12), rgba(124,58,237,0.08)); }
 
-  /* ── 동의 모달 ── */
-  .modal-overlay{
-    position:fixed;inset:0;background:rgba(30,16,64,0.55);backdrop-filter:blur(6px);
-    z-index:9999;display:flex;align-items:center;justify-content:center;
-  }
-  .modal{
-    background:var(--surface);border:1px solid var(--border);border-radius:18px;
-    padding:36px 32px;max-width:480px;width:90%;
-    box-shadow:0 24px 60px rgba(124,58,237,0.18);
-  }
-  .modal h3{
-    font-family:'Syne',sans-serif;font-size:18px;font-weight:800;
-    background:linear-gradient(90deg,var(--pink),var(--purple));
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-    margin-bottom:16px;
-  }
-  .modal p{font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:10px;}
-  .modal ul{font-size:12px;color:var(--muted);line-height:1.9;padding-left:18px;margin-bottom:16px;}
-  .modal-check{display:flex;align-items:flex-start;gap:10px;margin-bottom:20px;cursor:pointer;}
-  .modal-check input{margin-top:2px;accent-color:var(--purple);}
-  .modal-check span{font-size:12px;color:var(--text);line-height:1.7;}
-  .modal-btn{
-    width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;
-    font-family:'DM Mono',monospace;font-size:13px;font-weight:500;
-    background:linear-gradient(135deg,var(--pink),var(--purple));
-    color:#fff;box-shadow:0 4px 14px rgba(240,0,110,0.3);
-    transition:all 0.15s;
-  }
-  .modal-btn:disabled{opacity:0.4;cursor:not-allowed;box-shadow:none;}
-  .modal-btn:not(:disabled):hover{box-shadow:0 6px 20px rgba(240,0,110,0.45);transform:translateY(-1px);}
-  .privacy-badge{
-    display:inline-block;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);
-    border-radius:6px;padding:2px 8px;font-size:10px;color:var(--purple);margin-right:4px;
+  .chip {
+    display: inline-block; background: rgba(109,40,217,0.1);
+    border: 1.5px solid rgba(109,40,217,0.3); border-radius: 20px;
+    padding: 5px 14px; font-size: 13px; color: var(--purple); margin: 4px;
+    font-weight: 600;
   }
 
-  .badge{
-    display:inline-block;
-    background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.25);
-    border-radius:4px;padding:2px 6px;font-size:9px;color:var(--purple);margin-left:6px;
+  .pipeline {
+    display: flex; align-items: center; gap: 0;
+    margin-top: 18px; flex-wrap: nowrap;
   }
-  .section-title{font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase;}
+  .pipe-step {
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 12px; padding: 14px 12px; min-width: 110px;
+    box-shadow: 0 2px 12px rgba(124,58,237,0.08);
+    position: relative;
+  }
+  .pipe-step.mine {
+    border-color: var(--pink); background: rgba(240,0,110,0.06);
+    transform: scale(1.08);
+    box-shadow: 0 4px 24px rgba(240,0,110,0.18);
+  }
+  .pipe-step.mine::after {
+    content: '← 본인 담당';
+    position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: var(--pink); font-weight: 700; white-space: nowrap;
+    background: rgba(240,0,110,0.1); border: 1px solid var(--pink);
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .pipe-icon { font-size: 26px; margin-bottom: 6px; }
+  .pipe-label { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800; text-align: center; color: var(--text); }
+  .pipe-sub { font-size: 10px; color: var(--muted); text-align: center; margin-top: 4px; line-height: 1.4; }
+  .pipe-arrow { font-size: 22px; color: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+  .demo-box {
+    background: #1e1040;
+    border: 2px solid var(--purple);
+    border-radius: 16px;
+    width: 580px; height: 200px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    box-shadow: 0 8px 40px rgba(109,40,217,0.25);
+    margin-top: 12px;
+  }
+  .demo-steps {
+    display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; justify-content: center;
+  }
+  .demo-step {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 8px 14px;
+    font-size: 12px; color: var(--text); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .demo-step-num {
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800;
+    color: var(--pink);
+  }
+
+  .badge {
+    display: inline-block; background: rgba(240,0,110,0.1);
+    border: 1.5px solid rgba(240,0,110,0.4); border-radius: 6px;
+    padding: 2px 10px; font-size: 11px; color: var(--pink);
+    font-weight: 700; margin-left: 8px; vertical-align: middle;
+  }
+  .badge.green { background: rgba(5,150,105,0.1); border-color: rgba(5,150,105,0.4); color: var(--green); }
+
+  #keyhint {
+    position: fixed; bottom: 52px; right: 20px;
+    font-size: 11px; color: var(--muted); opacity: 0.5;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
 
-<!-- ── 개인정보 수집 동의 모달 ── -->
-<div class="modal-overlay" id="consentModal">
-  <div class="modal">
-    <h3>📋 개인정보 수집 및 이용 동의</h3>
-    <p><span class="privacy-badge">개인정보보호법</span> 제15조에 따라 아래 내용을 안내드립니다.</p>
-    <ul>
-      <li><strong>수집 항목</strong>: 신체 좌표 데이터 (어깨·골반·팔다리 등 관절 위치값)<br>
-        <span style="color:#f0006e;">※ 얼굴 식별 정보(눈·코·입·귀)는 CSV에 저장되지 않습니다</span></li>
-      <li><strong>수집 목적</strong>: 체형 분류 머신러닝 모델 학습 연구</li>
-      <li><strong>보유 기간</strong>: 연구 종료 후 즉시 파기</li>
-      <li><strong>제3자 제공</strong>: 없음</li>
-      <li><strong>영상 처리</strong>: 카메라 영상은 브라우저 내에서만 처리되며 서버로 전송되지 않습니다</li>
-      <li><strong>동의 거부 권리</strong>: 동의를 거부하실 수 있으나, 서비스 이용이 제한됩니다</li>
+<div id="progress"></div>
+
+<div id="slides">
+
+  <!-- Slide 1: Title -->
+  <div class="slide active" id="s1">
+    <div class="title-decoration td-1"></div>
+    <div class="title-decoration td-2"></div>
+    <div class="tag">ML Data Collection Tool</div>
+    <h1 class="slide-title">
+      <span class="gradient-text">Body Type</span><br>ML Data Collector
+    </h1>
+    <p class="slide-sub">MediaPipe Pose 기반 체형 분류 머신러닝용<br>실시간 신체 좌표 수집 도구</p>
+    <div style="margin-top:24px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+      <span class="chip">MediaPipe Pose</span>
+      <span class="chip">33 Landmarks</span>
+      <span class="chip">World 3D Coordinates</span>
+      <span class="chip">CSV Export</span>
+      <span class="chip">Browser-based</span>
+      <span class="chip">Privacy-first</span>
+    </div>
+  </div>
+
+  <!-- Slide 2: 팀 파이프라인 내 위치 -->
+  <div class="slide" id="s2">
+    <div class="tag">Pipeline</div>
+    <h2 class="slide-title" style="font-size:32px;">팀 파이프라인에서의 위치</h2>
+    <div class="pipeline">
+      <div class="pipe-step mine">
+        <div class="pipe-icon">📷</div>
+        <div class="pipe-label">데이터 수집</div>
+        <div class="pipe-sub">MediaPipe<br>CSV 출력</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">📐</div>
+        <div class="pipe-label">픽셀→cm<br>변환</div>
+        <div class="pipe-sub">RandomForest<br>보정</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🤖</div>
+        <div class="pipe-label">체형 분류</div>
+        <div class="pipe-sub">GMM<br>5가지 체형</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">👕</div>
+        <div class="pipe-label">스타일<br>추천</div>
+        <div class="pipe-sub">의류 매칭<br>알고리즘</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🖥️</div>
+        <div class="pipe-label">UI 표시</div>
+        <div class="pipe-sub">Figma<br>서비스</div>
+      </div>
+    </div>
+    <p style="margin-top:22px; font-size:13px; color:var(--muted); text-align:center; line-height:1.8;">
+      데이터 수집 파트에서 출력되는 CSV가<br>이후 모든 파트의 <strong style="color:var(--pink);">학습 데이터 및 입력값</strong>으로 사용됩니다.
+    </p>
+  </div>
+
+  <!-- Slide 3: 문제 정의 -->
+  <div class="slide" id="s3">
+    <div class="tag">Problem</div>
+    <h2 class="slide-title" style="font-size:34px;">왜 만들었나요?</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">📐</div>
+        <div class="card-title">정확한 신체 좌표 필요</div>
+        <div class="card-desc">체형 분류 ML 모델 학습을 위한 정량적 신체 데이터가 필요했어요</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💸</div>
+        <div class="card-title">별도 장비 없이</div>
+        <div class="card-desc">3D 스캐너 없이 웹캠 하나로 수집 가능해야 했어요. 수동 측정은 오차와 확장성 문제가 있었어요</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">즉시 ML에 활용</div>
+        <div class="card-desc">수집과 동시에 피처 추출, CSV 저장까지 한 번에 — 후속 파트가 바로 쓸 수 있는 형태로</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 4: 솔루션 -->
+  <div class="slide" id="s4">
+    <div class="tag">Solution</div>
+    <h2 class="slide-title" style="font-size:34px;">어떻게 구현했나요?</h2>
+    <ul class="feat-list">
+      <li><span class="num">01</span><span>브라우저에서 바로 실행 — 설치 없이 HTML 파일 하나로 동작 <span class="badge">GitHub Pages 배포</span></span></li>
+      <li><span class="num">02</span><span>MediaPipe Pose로 실시간 33개 랜드마크 추출 및 스켈레톤 시각화</span></li>
+      <li><span class="num">03</span><span>자세 안정화 감지 → 자동 5초 카운트다운 캡처 <span class="badge">움직임 diff 기반</span></span></li>
+      <li><span class="num">04</span><span>줌 슬라이더 (0.3×~1.5×) — 카메라 거리와 상관없이 전신 촬영 가능</span></li>
+      <li><span class="num">05</span><span>Azure ML 바로 사용 가능한 Wide-format CSV 3종 다운로드 <span class="badge green">37개 피처 자동 계산</span></span></li>
     </ul>
-    <label class="modal-check">
-      <input type="checkbox" id="consentCheck" onchange="document.getElementById('consentBtn').disabled=!this.checked">
-      <span>위 내용을 모두 읽었으며, 개인정보 수집 및 이용에 <strong>동의합니다</strong>.</span>
-    </label>
-    <button class="modal-btn" id="consentBtn" disabled onclick="closeConsent()">동의하고 시작하기</button>
   </div>
-</div>
 
-<h2>🤖 Body Type ML Data Collector</h2>
-<div class="subtitle">체형 분류 머신러닝용 피처 추출 도구 — landmarks · angles · distances · world coords</div>
-
-<div class="controls">
-  <select id="cameraSelect"></select>
-  <button class="btn-start" onclick="startCamera()">카메라 시작</button>
-  <button class="btn-reset" onclick="resetCapture()">재측정</button>
-</div>
-
-<!-- 🔍 줌 컨트롤 -->
-<div class="zoom-wrap">
-  <span class="zoom-label">🔍 줌</span>
-  <button class="zoom-btn" onclick="adjustZoom(-0.1)">−</button>
-  <input type="range" id="zoomSlider" min="0.3" max="1.5" step="0.05" value="1.0" oninput="onZoomChange(this.value)">
-  <button class="zoom-btn" onclick="adjustZoom(0.1)">+</button>
-  <span id="zoomValue">1.0×</span>
-  <button class="zoom-btn" style="font-size:11px;padding:4px 8px;" onclick="resetZoom()">리셋</button>
-</div>
-
-<div class="label-row">
-  <label>라벨 (body type):</label>
-  <input id="labelInput" type="text" placeholder="예: hourglass, apple, pear, rectangle..." style="width:220px;">
-  <span id="recordCount">저장된 샘플: 0개</span>
-</div>
-
-<div class="camera-wrap">
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" width="580" height="652"></canvas>
-  <div id="countdown"></div>
-  <div id="statusBar">
-    <span id="statusText">카메라를 시작해 주세요</span>
-    <span id="diffText">diff: —</span>
+  <!-- Slide 5: 수집 데이터 -->
+  <div class="slide" id="s5">
+    <div class="tag">Data Structure</div>
+    <h2 class="slide-title" style="font-size:30px;">수집되는 데이터 구조</h2>
+    <div class="stats" style="margin-bottom:16px;">
+      <div class="stat"><div class="stat-num">33</div><div class="stat-label">랜드마크<br>(2D + World 3D)</div></div>
+      <div class="stat"><div class="stat-num">19</div><div class="stat-label">거리 피처</div></div>
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">관절 각도</div></div>
+      <div class="stat"><div class="stat-num">6</div><div class="stat-label">비율 피처</div></div>
+    </div>
+    <div class="two-col">
+      <div class="col">
+        <div class="col-title">📏 주요 거리 피처</div>
+        <div class="col-item"><span class="dot"></span>어깨폭 / 골반폭 / 가슴폭</div>
+        <div class="col-item"><span class="dot"></span>상체 길이 / 허벅지 / 정강이</div>
+        <div class="col-item"><span class="dot"></span>상복부 · 허리 · 하복부 너비 추정</div>
+        <div class="col-item"><span class="dot yellow"></span>목 길이 / 어깨~발목 거리 (신장 기준 정규화)</div>
+      </div>
+      <div class="col">
+        <div class="col-title">📐 비율 · 각도 피처</div>
+        <div class="col-item"><span class="dot cyan"></span>어깨/골반비 · 허리/골반비 (WHR)</div>
+        <div class="col-item"><span class="dot cyan"></span>어깨/허리비 · 상체/하체 비율</div>
+        <div class="col-item"><span class="dot cyan"></span>어깨 · 팔꿈치 · 무릎 관절 각도</div>
+        <div class="col-item"><span class="dot cyan"></span>척추 기울기 · 어깨선 · 골반선 각도</div>
+      </div>
+    </div>
   </div>
-</div>
-<div id="stabilityBar"><div id="stabilityFill"></div></div>
 
-<div id="result">
-  <div class="metric-card"><div class="metric-label">신장</div><div class="metric-value" id="valH">—<span>px</span></div></div>
-  <div class="metric-card"><div class="metric-label">어깨폭</div><div class="metric-value" id="valS">—<span>px</span></div></div>
-  <div class="metric-card"><div class="metric-label">골반폭</div><div class="metric-value" id="valP">—<span>px</span></div></div>
-  <div class="metric-card"><div class="metric-label">가슴폭</div><div class="metric-value" id="valC">—<span>px</span></div></div>
-  <div class="metric-card"><div class="metric-label">어깨/골반비</div><div class="metric-value" id="valRatio">—</div></div>
-</div>
-
-<!-- Tabs -->
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('landmarks')">📍 랜드마크 좌표<span class="badge">33×8</span></div>
-  <div class="tab" onclick="switchTab('world')">🌐 월드 좌표<span class="badge">33×4</span></div>
-  <div class="tab" onclick="switchTab('angles')">📐 관절 각도<span class="badge">12</span></div>
-  <div class="tab" onclick="switchTab('distances')">📏 거리 피처<span class="badge">16</span></div>
-</div>
-
-<div id="tab-landmarks" class="tab-content active">
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>idx</th><th>name</th>
-      <th>x_norm</th><th>y_norm</th><th>z_norm</th><th>vis</th>
-      <th>x_px</th><th>y_px</th>
-    </tr></thead>
-    <tbody id="bodyLandmarks"><tr><td colspan="8" style="color:#333;padding:20px;">캡처 대기 중...</td></tr></tbody>
-    </table>
+  <!-- Slide 6: 시연 영상 -->
+  <div class="slide" id="s6">
+    <div class="tag">Demo</div>
+    <h2 class="slide-title" style="font-size:34px;">시연 영상</h2>
+    <video width="540" style="border-radius:14px;border:2px solid var(--purple);margin-top:10px;" controls>
+      <source src="demo.mp4" type="video/mp4">
+    </video>
+    <div class="demo-steps">
+      <div class="demo-step"><span class="demo-step-num">1</span> 동의 모달</div>
+      <div class="demo-step"><span class="demo-step-num">2</span> 카메라 + 스켈레톤</div>
+      <div class="demo-step"><span class="demo-step-num">3</span> 안정화 카운트다운</div>
+      <div class="demo-step"><span class="demo-step-num">4</span> 자동 캡처 + 수치</div>
+      <div class="demo-step"><span class="demo-step-num">5</span> 줌 기능</div>
+      <div class="demo-step"><span class="demo-step-num">6</span> CSV 다운로드</div>
+    </div>
   </div>
-</div>
 
-<div id="tab-world" class="tab-content">
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>idx</th><th>name</th>
-      <th>wx</th><th>wy</th><th>wz</th><th>vis</th>
-    </tr></thead>
-    <tbody id="bodyWorld"><tr><td colspan="6" style="color:#333;padding:20px;">캡처 대기 중...</td></tr></tbody>
-    </table>
+  <!-- Slide 7: 윤리 & 개인정보 -->
+  <div class="slide" id="s7">
+    <div class="tag">Ethics & Privacy</div>
+    <h2 class="slide-title" style="font-size:34px;">개인정보 보호 설계</h2>
+    <div class="two-col" style="margin-top:14px;">
+      <div class="col">
+        <div class="col-title">🔒 개인정보보호법 대응</div>
+        <div class="col-item"><span class="dot"></span>수집 전 동의 모달 — 목적·보유기간·제3자 제공 고지</div>
+        <div class="col-item"><span class="dot"></span>얼굴 랜드마크(눈·코·입·귀) CSV 저장 제외</div>
+        <div class="col-item"><span class="dot"></span>영상은 브라우저 내 처리만 — 서버 전송 없음</div>
+        <div class="col-item"><span class="dot"></span>좌표값만 저장 — 이미지 미저장, 삭제권 보장</div>
+      </div>
+      <div class="col">
+        <div class="col-title">⚖️ AI 윤리 준수</div>
+        <div class="col-item"><span class="dot cyan"></span>체형 라벨링 — 차별적 표현 배제, 중립적 분류</div>
+        <div class="col-item"><span class="dot cyan"></span>데이터 편향 최소화 — 다양한 체형 균형 수집</div>
+        <div class="col-item"><span class="dot cyan"></span>추천 결과 — 특정 체형 비하 없는 중립 표현</div>
+        <div class="col-item"><span class="dot cyan"></span>동의 거부 시 카메라 미작동 — 선택권 보장</div>
+      </div>
+    </div>
+    <p style="margin-top:16px; font-size:12px; color:var(--muted); text-align:center;">
+      📌 개인정보보호법 제15조 · AI 기본법 윤리 원칙 — <strong style="color:var(--purple);">기획 초기부터 설계에 반영</strong>
+    </p>
   </div>
-</div>
 
-<div id="tab-angles" class="tab-content">
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>feature</th><th>angle (°)</th><th>description</th>
-    </tr></thead>
-    <tbody id="bodyAngles"><tr><td colspan="3" style="color:#333;padding:20px;">캡처 대기 중...</td></tr></tbody>
-    </table>
+  <!-- Slide 8: 마무리 -->
+  <div class="slide" id="s8">
+    <div class="title-decoration td-1"></div>
+    <div class="title-decoration td-2"></div>
+    <div class="tag">Summary</div>
+    <h2 class="slide-title" style="font-size:36px;">
+      <span class="gradient-text">데이터 수집 파트</span><br>완성 및 파이프라인 연결 완료
+    </h2>
+    <div class="stats" style="margin-top:20px;">
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">수집 툴 완성<br>Github Pages 라이브 실행 가능</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">37개 피처<br>자동 추출</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">개인정보 보호<br>설계 완료</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">CSV 출력<br>Azure ML 연동 완료</div></div>
+    </div>
+    <p style="margin-top:22px; font-size:14px; color:var(--muted); text-align:center; line-height:2;">
+      설계 · 구현 · 윤리 설계 · 팀 파이프라인 연동 — <strong style="color:var(--purple);">전 과정 단독 개발</strong>
+    </p>
   </div>
+
 </div>
 
-<div id="tab-distances" class="tab-content">
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>feature</th><th>px</th><th>norm (÷height)</th><th>description</th>
-    </tr></thead>
-    <tbody id="bodyDistances"><tr><td colspan="4" style="color:#333;padding:20px;">캡처 대기 중...</td></tr></tbody>
-    </table>
-  </div>
+<!-- Nav — 대본 버튼 없음 -->
+<div id="nav">
+  <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)" disabled>← 이전</button>
+  <span id="slideNum">1 / 8</span>
+  <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">다음 →</button>
 </div>
 
-<div class="dl-row">
-  <button class="btn-dl btn-landmarks" onclick="downloadLandmarksCSV()">📍 랜드마크 CSV</button>
-  <button class="btn-dl btn-features" onclick="downloadFeaturesCSV()">📊 피처(각도+거리) CSV</button>
-  <button class="btn-dl btn-all" onclick="downloadAllCSV()">⚡ 전체 통합 CSV (ML용)</button>
-</div>
+<div id="keyhint">← → 키보드 이동</div>
 
 <script>
-// ── 동의 모달 ────────────────────────────────────────
-function closeConsent(){
-  document.getElementById("consentModal").style.display="none";
-}
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
 
-// 얼굴 랜드마크 인덱스 (개인정보보호 — CSV 저장 제외)
-// 0:nose, 1-10: 눈/귀/입 관련 (MediaPipe 0~10번)
-const FACE_LM_INDICES = new Set([0,1,2,3,4,5,6,7,8,9,10]);
-
-// ── 상수 ────────────────────────────────────────────
-const LM = {
-  NOSE:0,LEFT_EYE:2,RIGHT_EYE:5,LEFT_EAR:7,RIGHT_EAR:8,
-  LEFT_SHOULDER:11,RIGHT_SHOULDER:12,
-  LEFT_ELBOW:13,RIGHT_ELBOW:14,
-  LEFT_WRIST:15,RIGHT_WRIST:16,
-  LEFT_HIP:23,RIGHT_HIP:24,
-  LEFT_KNEE:25,RIGHT_KNEE:26,
-  LEFT_ANKLE:27,RIGHT_ANKLE:28,
-  LEFT_HEEL:29,RIGHT_HEEL:30,
-  LEFT_FOOT:31,RIGHT_FOOT:32
-};
-
-const LANDMARK_NAMES=["nose","left_eye_inner","left_eye","left_eye_outer","right_eye_inner","right_eye","right_eye_outer","left_ear","right_ear","mouth_left","mouth_right","left_shoulder","right_shoulder","left_elbow","right_elbow","left_wrist","right_wrist","left_pinky","right_pinky","left_index","right_index","left_thumb","right_thumb","left_hip","right_hip","left_knee","right_knee","left_ankle","right_ankle","left_heel","right_heel","left_foot_index","right_foot_index"];
-
-// ── 상태 ────────────────────────────────────────────
-const video=document.getElementById("video");
-const canvas=document.getElementById("canvas");
-const ctx=canvas.getContext("2d");
-let stream,prevLandmarks=null,stableStart=null,countdownStart=null,captured=false;
-let allSamples=[];
-
-// ── 줌 상태 ─────────────────────────────────────────
-let zoomLevel = 1.0; // 1.0 = 기본, 0.5 = 줌아웃(더 넓게), 1.5 = 줌인(더 좁게)
-
-function onZoomChange(val){
-  zoomLevel = parseFloat(val);
-  document.getElementById("zoomValue").innerText = zoomLevel.toFixed(1) + "×";
-  updateSliderFill(val);
-}
-
-function adjustZoom(delta){
-  const slider = document.getElementById("zoomSlider");
-  const newVal = Math.min(1.5, Math.max(0.3, zoomLevel + delta));
-  slider.value = newVal;
-  onZoomChange(newVal);
-}
-
-function resetZoom(){
-  const slider = document.getElementById("zoomSlider");
-  slider.value = 1.0;
-  onZoomChange(1.0);
-}
-
-function updateSliderFill(val){
-  const slider = document.getElementById("zoomSlider");
-  const min = parseFloat(slider.min);
-  const max = parseFloat(slider.max);
-  const pct = ((val - min) / (max - min)) * 100;
-  slider.style.background = `linear-gradient(to right, #00e676 0%, #00e676 ${pct}%, #2a2a2a ${pct}%, #2a2a2a 100%)`;
-}
-
-// ── 유틸 함수 ───────────────────────────────────────
-function dist2D(a,b,w,h){
-  return Math.sqrt((a.x-b.x)**2*(w**2)+(a.y-b.y)**2*(h**2));
-}
-function dist2Dnorm(a,b){
-  return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
-}
-function dist3Dworld(a,b){
-  return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2+(a.z-b.z)**2);
-}
-function midpoint(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:((a.z||0)+(b.z||0))/2};}
-
-function angleDeg(A,B,C){
-  const BA={x:A.x-B.x,y:A.y-B.y};
-  const BC={x:C.x-B.x,y:C.y-B.y};
-  const dot=BA.x*BC.x+BA.y*BC.y;
-  const magBA=Math.sqrt(BA.x**2+BA.y**2);
-  const magBC=Math.sqrt(BC.x**2+BC.y**2);
-  if(magBA===0||magBC===0)return 0;
-  return Math.acos(Math.min(1,Math.max(-1,dot/(magBA*magBC))))*(180/Math.PI);
-}
-
-// ── 피처 추출 ───────────────────────────────────────
-function extractFeatures(lm, wlm, W, H){
-  const L=LM;
-  const ankleY=(lm[L.LEFT_ANKLE].y+lm[L.RIGHT_ANKLE].y)/2;
-  const heightNorm=Math.abs(lm[L.NOSE].y - ankleY);
-  const heightPx=heightNorm*H;
-
-  // ── 복부/허리 추정 포인트 (어깨~골반 사이 1/3, 2/3 지점) ──
-  // waist_upper: 어깨에서 1/3 아래 (가슴 하단)
-  // waist_mid:   어깨~골반 정중앙 (허리 추정)
-  // waist_lower: 골반에서 1/3 위 (하복부)
-  function interpPoint(a, b, t){ // t=0이면 a, t=1이면 b
-    return {x: a.x+(b.x-a.x)*t, y: a.y+(b.y-a.y)*t};
-  }
-  const lShoulderP = lm[L.LEFT_SHOULDER],  rShoulderP = lm[L.RIGHT_SHOULDER];
-  const lHipP      = lm[L.LEFT_HIP],       rHipP      = lm[L.RIGHT_HIP];
-
-  const waistUpper_L = interpPoint(lShoulderP, lHipP, 1/3);
-  const waistUpper_R = interpPoint(rShoulderP, rHipP, 1/3);
-  const waistMid_L   = interpPoint(lShoulderP, lHipP, 1/2);
-  const waistMid_R   = interpPoint(rShoulderP, rHipP, 1/2);
-  const waistLower_L = interpPoint(lShoulderP, lHipP, 2/3);
-  const waistLower_R = interpPoint(rShoulderP, rHipP, 2/3);
-
-  const defs=[
-    {key:"shoulder_width",       a:lm[L.LEFT_SHOULDER], b:lm[L.RIGHT_SHOULDER], desc:"어깨폭"},
-    {key:"hip_width",            a:lm[L.LEFT_HIP],      b:lm[L.RIGHT_HIP],      desc:"골반폭"},
-    {key:"chest_width",          a:midpoint(lm[L.LEFT_SHOULDER],lm[L.LEFT_HIP]), b:midpoint(lm[L.RIGHT_SHOULDER],lm[L.RIGHT_HIP]), desc:"겨드랑이 가슴폭"},
-    {key:"waist_upper_width",    a:waistUpper_L, b:waistUpper_R,                 desc:"상복부 너비 추정 (어깨~골반 1/3)"},
-    {key:"waist_mid_width",      a:waistMid_L,   b:waistMid_R,                   desc:"허리 너비 추정 (어깨~골반 중간)"},
-    {key:"waist_lower_width",    a:waistLower_L, b:waistLower_R,                 desc:"하복부 너비 추정 (어깨~골반 2/3)"},
-    {key:"torso_length",         a:midpoint(lm[L.LEFT_SHOULDER],lm[L.RIGHT_SHOULDER]), b:midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]), desc:"상체 길이"},
-    {key:"left_upper_arm",       a:lm[L.LEFT_SHOULDER], b:lm[L.LEFT_ELBOW],     desc:"왼 상완"},
-    {key:"right_upper_arm",      a:lm[L.RIGHT_SHOULDER],b:lm[L.RIGHT_ELBOW],    desc:"오른 상완"},
-    {key:"left_forearm",         a:lm[L.LEFT_ELBOW],    b:lm[L.LEFT_WRIST],     desc:"왼 하완"},
-    {key:"right_forearm",        a:lm[L.RIGHT_ELBOW],   b:lm[L.RIGHT_WRIST],    desc:"오른 하완"},
-    {key:"left_thigh",           a:lm[L.LEFT_HIP],      b:lm[L.LEFT_KNEE],      desc:"왼 허벅지"},
-    {key:"right_thigh",          a:lm[L.RIGHT_HIP],     b:lm[L.RIGHT_KNEE],     desc:"오른 허벅지"},
-    {key:"left_shin",            a:lm[L.LEFT_KNEE],     b:lm[L.LEFT_ANKLE],     desc:"왼 정강이"},
-    {key:"right_shin",           a:lm[L.RIGHT_KNEE],    b:lm[L.RIGHT_ANKLE],    desc:"오른 정강이"},
-    {key:"neck_to_hip",          a:lm[L.NOSE],          b:midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]), desc:"목~골반"},
-    {key:"shoulder_to_ankle_L",  a:lm[L.LEFT_SHOULDER], b:lm[L.LEFT_ANKLE],     desc:"왼 어깨~발목"},
-    {key:"shoulder_to_ankle_R",  a:lm[L.RIGHT_SHOULDER],b:lm[L.RIGHT_ANKLE],    desc:"오른 어깨~발목"},
-    {key:"ear_to_shoulder_L",    a:lm[L.LEFT_EAR],      b:lm[L.LEFT_SHOULDER],  desc:"왼 귀~어깨 (목길이)"},
-  ];
-
-  const distances={};
-  defs.forEach(d=>{
-    const px=dist2D(d.a,d.b,W,H);
-    distances[d.key]={px:px.toFixed(4), norm:(px/heightPx).toFixed(6), desc:d.desc};
-  });
-
-  const sw=dist2D(lm[L.LEFT_SHOULDER],lm[L.RIGHT_SHOULDER],W,H);
-  const hw=dist2D(lm[L.LEFT_HIP],lm[L.RIGHT_HIP],W,H);
-  const cw=dist2D(
-    midpoint(lm[L.LEFT_SHOULDER],lm[L.LEFT_HIP]),
-    midpoint(lm[L.RIGHT_SHOULDER],lm[L.RIGHT_HIP]),W,H);
-  const ww=dist2D(waistMid_L, waistMid_R, W, H); // 허리 너비
-  const ratios={
-    shoulder_hip_ratio:(sw/hw).toFixed(6),
-    shoulder_chest_ratio:(sw/cw).toFixed(6),
-    chest_hip_ratio:(cw/hw).toFixed(6),
-    waist_hip_ratio:(ww/hw).toFixed(6),
-    shoulder_waist_ratio:(sw/ww).toFixed(6),
-    torso_leg_ratio:(dist2D(midpoint(lm[L.LEFT_SHOULDER],lm[L.RIGHT_SHOULDER]),midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]),W,H) /
-                     dist2D(midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]),midpoint(lm[L.LEFT_ANKLE],lm[L.RIGHT_ANKLE]),W,H)).toFixed(6),
-  };
-
-  const angles={
-    left_shoulder_angle:  angleDeg(lm[L.LEFT_ELBOW],  lm[L.LEFT_SHOULDER],  lm[L.LEFT_HIP]).toFixed(2),
-    right_shoulder_angle: angleDeg(lm[L.RIGHT_ELBOW], lm[L.RIGHT_SHOULDER], lm[L.RIGHT_HIP]).toFixed(2),
-    left_elbow_angle:     angleDeg(lm[L.LEFT_SHOULDER],lm[L.LEFT_ELBOW],    lm[L.LEFT_WRIST]).toFixed(2),
-    right_elbow_angle:    angleDeg(lm[L.RIGHT_SHOULDER],lm[L.RIGHT_ELBOW],  lm[L.RIGHT_WRIST]).toFixed(2),
-    left_hip_angle:       angleDeg(lm[L.LEFT_SHOULDER],lm[L.LEFT_HIP],      lm[L.LEFT_KNEE]).toFixed(2),
-    right_hip_angle:      angleDeg(lm[L.RIGHT_SHOULDER],lm[L.RIGHT_HIP],    lm[L.RIGHT_KNEE]).toFixed(2),
-    left_knee_angle:      angleDeg(lm[L.LEFT_HIP],    lm[L.LEFT_KNEE],      lm[L.LEFT_ANKLE]).toFixed(2),
-    right_knee_angle:     angleDeg(lm[L.RIGHT_HIP],   lm[L.RIGHT_KNEE],     lm[L.RIGHT_ANKLE]).toFixed(2),
-    spine_tilt:           angleDeg(
-      midpoint(lm[L.LEFT_SHOULDER],lm[L.RIGHT_SHOULDER]),
-      midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]),
-      {x:midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]).x, y:midpoint(lm[L.LEFT_HIP],lm[L.RIGHT_HIP]).y+0.1}
-    ).toFixed(2),
-    shoulder_tilt:        (Math.atan2(
-      (lm[L.RIGHT_SHOULDER].y-lm[L.LEFT_SHOULDER].y),
-      (lm[L.RIGHT_SHOULDER].x-lm[L.LEFT_SHOULDER].x))*(180/Math.PI)).toFixed(2),
-    hip_tilt:             (Math.atan2(
-      (lm[L.RIGHT_HIP].y-lm[L.LEFT_HIP].y),
-      (lm[L.RIGHT_HIP].x-lm[L.LEFT_HIP].x))*(180/Math.PI)).toFixed(2),
-    neck_angle:           angleDeg(
-      midpoint(lm[L.LEFT_SHOULDER],lm[L.RIGHT_SHOULDER]),
-      lm[L.NOSE],
-      {x:lm[L.NOSE].x, y:lm[L.NOSE].y-0.1}
-    ).toFixed(2),
-  };
-
-  return {distances, ratios, angles, heightPx, sw, hw, cw};
-}
-
-// ── 테이블 렌더링 ───────────────────────────────────
-function renderTables(lm, wlm, W, H, feats){
-  const tbody=document.getElementById("bodyLandmarks");
-  tbody.innerHTML="";
-  lm.forEach((p,i)=>{
-    tbody.innerHTML+=`<tr>
-      <td>${i}</td><td class="lm-name">${LANDMARK_NAMES[i]}</td>
-      <td>${p.x.toFixed(5)}</td><td>${p.y.toFixed(5)}</td><td>${p.z.toFixed(5)}</td>
-      <td>${(p.visibility||0).toFixed(4)}</td>
-      <td>${(p.x*W).toFixed(1)}</td><td>${(p.y*H).toFixed(1)}</td>
-    </tr>`;
-  });
-
-  const wbody=document.getElementById("bodyWorld");
-  wbody.innerHTML="";
-  if(wlm){
-    wlm.forEach((p,i)=>{
-      wbody.innerHTML+=`<tr>
-        <td>${i}</td><td class="lm-name">${LANDMARK_NAMES[i]}</td>
-        <td>${p.x.toFixed(5)}</td><td>${p.y.toFixed(5)}</td><td>${p.z.toFixed(5)}</td>
-        <td>${(p.visibility||0).toFixed(4)}</td>
-      </tr>`;
-    });
-  } else {
-    wbody.innerHTML='<tr><td colspan="6" style="color:#444;padding:14px;">월드 좌표 없음</td></tr>';
+  function changeSlide(dir) {
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('prev');
+    setTimeout(() => slides[cur].classList.remove('prev'), 500);
+    cur = Math.max(0, Math.min(total - 1, cur + dir));
+    slides[cur].classList.add('active');
+    document.getElementById('slideNum').innerText = `${cur + 1} / ${total}`;
+    document.getElementById('prevBtn').disabled = cur === 0;
+    document.getElementById('nextBtn').disabled = cur === total - 1;
+    document.getElementById('progress').style.width = `${((cur + 1) / total) * 100}%`;
   }
 
-  const abody=document.getElementById("bodyAngles");
-  const angleDescs={
-    left_shoulder_angle:"왼 어깨 (팔꿈치-어깨-골반)",
-    right_shoulder_angle:"오른 어깨 (팔꿈치-어깨-골반)",
-    left_elbow_angle:"왼 팔꿈치",right_elbow_angle:"오른 팔꿈치",
-    left_hip_angle:"왼 엉덩이",right_hip_angle:"오른 엉덩이",
-    left_knee_angle:"왼 무릎",right_knee_angle:"오른 무릎",
-    spine_tilt:"척추 기울기",shoulder_tilt:"어깨선 각도(°)",
-    hip_tilt:"골반선 각도(°)",neck_angle:"목 기울기"
-  };
-  abody.innerHTML="";
-  Object.entries(feats.angles).forEach(([k,v])=>{
-    abody.innerHTML+=`<tr>
-      <td class="feat-name">${k}</td>
-      <td style="color:#ffcc02;font-weight:600;">${v}°</td>
-      <td style="color:#555;">${angleDescs[k]||""}</td>
-    </tr>`;
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') changeSlide(1);
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') changeSlide(-1);
   });
 
-  const dbody=document.getElementById("bodyDistances");
-  dbody.innerHTML="";
-  Object.entries(feats.distances).forEach(([k,v])=>{
-    dbody.innerHTML+=`<tr>
-      <td class="feat-name">${k}</td>
-      <td>${v.px}</td>
-      <td style="color:#ff9800;">${v.norm}</td>
-      <td style="color:#555;">${v.desc}</td>
-    </tr>`;
-  });
-  Object.entries(feats.ratios).forEach(([k,v])=>{
-    dbody.innerHTML+=`<tr>
-      <td class="feat-name" style="color:#e040fb;">${k}</td>
-      <td>—</td><td style="color:#e040fb;">${v}</td>
-      <td style="color:#555;">비율 피처</td>
-    </tr>`;
-  });
-}
-
-// ── MediaPipe ───────────────────────────────────────
-const pose=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});
-pose.setOptions({modelComplexity:0,smoothLandmarks:true,enableSegmentation:false,
-  minDetectionConfidence:0.5,minTrackingConfidence:0.5});
-
-pose.onResults(results=>{
-  const W=canvas.width, H=canvas.height;
-  ctx.clearRect(0,0,W,H);
-
-  // ── 줌 적용: 소스 크롭 방식 ──
-  // zoomLevel > 1 → 줌인 (중앙 크롭 후 확대)
-  // zoomLevel < 1 → 줌아웃 (더 넓은 영역을 캔버스에 맞게 축소)
-  const vw = video.videoWidth  || W;
-  const vh = video.videoHeight || H;
-
-  // 현재 줌 레벨에서 소스에서 잘라낼 영역 크기
-  const cropW = vw / zoomLevel;
-  const cropH = vh / zoomLevel;
-  // 화면 중앙 기준 크롭
-  const cropX = Math.max(0, (vw - cropW) / 2);
-  const cropY = Math.max(0, (vh - cropH) / 2);
-
-  ctx.drawImage(video,
-    cropX, cropY, Math.min(cropW, vw), Math.min(cropH, vh),  // 소스 영역
-    0, 0, W, H                                                 // 캔버스 전체
-  );
-
-  // 가이드 박스 — 그라디언트 테두리
-  const grd=ctx.createLinearGradient(W*0.25,H*0.05,W*0.75,H*0.95);
-  grd.addColorStop(0,'rgba(255,45,120,0.7)');
-  grd.addColorStop(0.5,'rgba(191,95,255,0.7)');
-  grd.addColorStop(1,'rgba(0,245,255,0.7)');
-  ctx.strokeStyle=grd;ctx.lineWidth=2;
-  ctx.strokeRect(W*0.25,H*0.05,W*0.5,H*0.9);
-
-  if(results.poseLandmarks){
-    const lm=results.poseLandmarks;
-    const wlm=results.poseWorldLandmarks||null;
-
-    drawConnectors(ctx,lm,POSE_CONNECTIONS,{color:'rgba(124,58,237,0.6)',lineWidth:2.5});
-    drawLandmarks(ctx,lm,{color:'#f0006e',fillColor:'rgba(240,0,110,0.25)',radius:3.5});
-
-    // 복부/허리 추정 포인트 시각화
-    if(captured){
-      const featsNow=extractFeatures(lm,null,W,H);
-      // interpPoint 재계산해서 그리기
-      function ip(a,b,t){return{x:(a.x+(b.x-a.x)*t)*W, y:(a.y+(b.y-a.y)*t)*H};}
-      const pts=[
-        ip(lm[LM.LEFT_SHOULDER],lm[LM.LEFT_HIP],1/3),
-        ip(lm[LM.RIGHT_SHOULDER],lm[LM.RIGHT_HIP],1/3),
-        ip(lm[LM.LEFT_SHOULDER],lm[LM.LEFT_HIP],1/2),
-        ip(lm[LM.RIGHT_SHOULDER],lm[LM.RIGHT_HIP],1/2),
-        ip(lm[LM.LEFT_SHOULDER],lm[LM.LEFT_HIP],2/3),
-        ip(lm[LM.RIGHT_SHOULDER],lm[LM.RIGHT_HIP],2/3),
-      ];
-      // 선으로 연결
-      [[0,1],[2,3],[4,5]].forEach(([i,j])=>{
-        ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[j].x,pts[j].y);
-        ctx.strokeStyle='rgba(245,158,11,0.7)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
-        ctx.stroke();ctx.setLineDash([]);
-      });
-      // 포인트
-      pts.forEach(p=>{
-        ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);
-        ctx.fillStyle='#f59e0b';ctx.fill();
-      });
-    }
-
-    let diff=999;
-    if(prevLandmarks){
-      diff=lm.reduce((s,p,i)=>s+Math.abs(p.x-prevLandmarks[i].x)+Math.abs(p.y-prevLandmarks[i].y),0);
-    }
-    document.getElementById("diffText").innerText=`diff: ${diff.toFixed(4)}`;
-
-    const stableThreshold=0.03;
-    const stabilityPct=Math.max(0,Math.min(100,(1-diff/stableThreshold)*100));
-    document.getElementById("stabilityFill").style.width=stabilityPct+"%";
-
-    // 전신 가시성 체크 (발목 visibility 0.5 이상이어야 카운트다운 시작)
-    const leftAnkleVis = lm[LM.LEFT_ANKLE].visibility || 0;
-    const rightAnkleVis = lm[LM.RIGHT_ANKLE].visibility || 0;
-    const fullBodyVisible = (leftAnkleVis + rightAnkleVis) / 2 > 0.5;
-
-    if(diff<stableThreshold){
-      if(!stableStart)stableStart=Date.now();
-      const stableElapsed=Date.now()-stableStart;
-      if(stableElapsed>1500){
-        if(!fullBodyVisible){
-          document.getElementById("countdown").innerText="";
-          document.getElementById("statusText").innerText="📏 발목까지 전신이 보이게 뒤로 물러서 주세요";
-          countdownStart=null;
-          prevLandmarks=lm;
-          return;
-        }
-        if(!countdownStart)countdownStart=Date.now();
-        const remaining=5-Math.floor((Date.now()-countdownStart)/1000);
-        document.getElementById("countdown").innerText=remaining>0?remaining:"";
-        document.getElementById("statusText").innerText=remaining>0?`카운트다운: ${remaining}초`:"✅ 캡처 완료!";
-
-        if(remaining<=0&&!captured){
-          captured=true;
-          const feats=extractFeatures(lm,wlm,W,H);
-
-          document.getElementById("valH").innerHTML=`${feats.heightPx.toFixed(1)}<span>px</span>`;
-          document.getElementById("valS").innerHTML=`${feats.sw.toFixed(1)}<span>px</span>`;
-          document.getElementById("valP").innerHTML=`${feats.hw.toFixed(1)}<span>px</span>`;
-          document.getElementById("valC").innerHTML=`${feats.cw.toFixed(1)}<span>px</span>`;
-          document.getElementById("valRatio").innerHTML=feats.ratios.shoulder_hip_ratio;
-
-          renderTables(lm,wlm,W,H,feats);
-
-          const label=document.getElementById("labelInput").value.trim()||"unlabeled";
-          allSamples.push({
-            timestamp:new Date().toISOString(),
-            label,
-            landmarks:[...lm.map(p=>({...p}))],
-            worldLandmarks:wlm?[...wlm.map(p=>({...p}))]:null,
-            features:feats
-          });
-          document.getElementById("recordCount").innerText=`저장된 샘플: ${allSamples.length}개`;
-        }
-      } else {
-        document.getElementById("statusText").innerText=`안정화 중... (${(stableElapsed/1000).toFixed(1)}s / 1.5s)`;
-      }
-    } else {
-      stableStart=null;countdownStart=null;
-      document.getElementById("countdown").innerText="";
-      document.getElementById("statusText").innerText="자세를 고정해 주세요";
-    }
-    prevLandmarks=lm;
-  }
-  requestAnimationFrame(processFrame);
-});
-
-async function processFrame(){await pose.send({image:video});}
-video.addEventListener("loadeddata",()=>processFrame());
-
-// ── 카메라 ──────────────────────────────────────────
-async function getCameras(){
-  const devices=await navigator.mediaDevices.enumerateDevices();
-  const cams=devices.filter(d=>d.kind==="videoinput");
-  const sel=document.getElementById("cameraSelect");
-  sel.innerHTML="";
-  cams.forEach((c,i)=>{
-    const o=document.createElement("option");
-    o.value=c.deviceId;o.text=c.label||`Camera ${i+1}`;
-    sel.appendChild(o);
-  });
-}
-async function startCamera(){
-  if(stream)stream.getTracks().forEach(t=>t.stop());
-  // 고해상도 요청 → 더 넓은 영역을 캡처한 뒤 다운스케일
-  stream=await navigator.mediaDevices.getUserMedia({
-    video:{
-      deviceId:{exact:document.getElementById("cameraSelect").value},
-      width:{ideal:1920},
-      height:{ideal:1080}
-    }
-  });
-  video.srcObject=stream;
-  // 실제 해상도 확인 후 표시
-  video.addEventListener("loadedmetadata",()=>{
-    const t=stream.getVideoTracks()[0].getSettings();
-    document.getElementById("statusText").innerText=`카메라 해상도: ${t.width}×${t.height} — 자세를 고정해 주세요`;
-  },{once:true});
-}
-function resetCapture(){
-  captured=false;stableStart=null;countdownStart=null;prevLandmarks=null;
-  document.getElementById("countdown").innerText="";
-  document.getElementById("statusText").innerText="재측정 준비 완료 — 자세를 고정해 주세요";
-  ["valH","valS","valP","valC"].forEach(id=>document.getElementById(id).innerHTML=`—<span>px</span>`);
-  document.getElementById("valRatio").innerHTML="—";
-  ["bodyLandmarks","bodyWorld","bodyAngles","bodyDistances"].forEach(id=>{
-    document.getElementById(id).innerHTML='<tr><td colspan="8" style="color:#333;padding:20px;">캡처 대기 중...</td></tr>';
-  });
-}
-
-// ── 탭 ──────────────────────────────────────────────
-function switchTab(name){
-  document.querySelectorAll(".tab").forEach((t,i)=>{
-    const names=["landmarks","world","angles","distances"];
-    t.classList.toggle("active",names[i]===name);
-  });
-  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
-  document.getElementById("tab-"+name).classList.add("active");
-}
-
-// ── CSV 다운로드 ─────────────────────────────────────
-function dl(content,filename){
-  const blob=new Blob(["\uFEFF"+content],{type:"text/csv;charset=utf-8;"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);a.download=filename;a.click();
-}
-
-function downloadLandmarksCSV(){
-  if(!allSamples.length){alert("먼저 캡처해 주세요.");return;}
-  let csv="sample_id,timestamp,label,landmark_idx,landmark_name,x_norm,y_norm,z_norm,visibility,x_px,y_px";
-  if(allSamples[0].worldLandmarks) csv+=",wx,wy,wz";
-  csv+="\n";
-  allSamples.forEach((s,si)=>{
-    const W=canvas.width,H=canvas.height;
-    s.landmarks.forEach((lm,li)=>{
-      if(FACE_LM_INDICES.has(li)) return; // 얼굴 랜드마크 제외
-      let row=`${si+1},${s.timestamp},${s.label},${li},${LANDMARK_NAMES[li]},${lm.x.toFixed(6)},${lm.y.toFixed(6)},${lm.z.toFixed(6)},${(lm.visibility||0).toFixed(6)},${(lm.x*W).toFixed(2)},${(lm.y*H).toFixed(2)}`;
-      if(s.worldLandmarks){const w=s.worldLandmarks[li];row+=`,${w.x.toFixed(6)},${w.y.toFixed(6)},${w.z.toFixed(6)}`;}
-      csv+=row+"\n";
-    });
-  });
-  dl(csv,"landmarks.csv");
-}
-
-function downloadFeaturesCSV(){
-  if(!allSamples.length){alert("먼저 캡처해 주세요.");return;}
-  const s0=allSamples[0];
-  const distKeys=Object.keys(s0.features.distances);
-  const distPxCols=distKeys.map(k=>k+"_px");
-  const distNormCols=distKeys.map(k=>k+"_norm");
-  const ratioKeys=Object.keys(s0.features.ratios);
-  const angleKeys=Object.keys(s0.features.angles);
-  const header=["sample_id","timestamp","label","height_px",
-    ...distPxCols,...distNormCols,...ratioKeys,...angleKeys.map(k=>k+"_deg")].join(",")+"\n";
-
-  let csv=header;
-  allSamples.forEach((s,si)=>{
-    const f=s.features;
-    const row=[
-      si+1,s.timestamp,s.label,f.heightPx.toFixed(2),
-      ...distKeys.map(k=>f.distances[k].px),
-      ...distKeys.map(k=>f.distances[k].norm),
-      ...ratioKeys.map(k=>f.ratios[k]),
-      ...angleKeys.map(k=>f.angles[k])
-    ].join(",");
-    csv+=row+"\n";
-  });
-  dl(csv,"features_angles_distances.csv");
-}
-
-function downloadAllCSV(){
-  if(!allSamples.length){alert("먼저 캡처해 주세요.");return;}
-  const W=canvas.width,H=canvas.height;
-  const lmCols=[];
-  LANDMARK_NAMES.forEach((n,i)=>{
-    if(FACE_LM_INDICES.has(i)) return; // 얼굴 랜드마크 제외
-    ["x_norm","y_norm","z_norm","vis","x_px","y_px"].forEach(s=>lmCols.push(`${n}_${s}`));
-  });
-  const wlmCols=[];
-  LANDMARK_NAMES.forEach((n,i)=>{
-    if(FACE_LM_INDICES.has(i)) return; // 얼굴 랜드마크 제외
-    ["wx","wy","wz"].forEach(s=>wlmCols.push(`${n}_${s}`));
-  });
-
-  const s0=allSamples[0];
-  const distKeys=Object.keys(s0.features.distances);
-  const ratioKeys=Object.keys(s0.features.ratios);
-  const angleKeys=Object.keys(s0.features.angles);
-  const featCols=[
-    "height_px",
-    ...distKeys.map(k=>k+"_px"),...distKeys.map(k=>k+"_norm"),
-    ...ratioKeys,...angleKeys.map(k=>k+"_deg")
-  ];
-
-  const header=["sample_id","timestamp","label",...lmCols,...wlmCols,...featCols].join(",")+"\n";
-  let csv=header;
-
-  allSamples.forEach((s,si)=>{
-    const f=s.features;
-    const lmVals=s.landmarks.flatMap((lm,li)=>{
-      if(FACE_LM_INDICES.has(li)) return []; // 얼굴 랜드마크 제외
-      return [lm.x.toFixed(6),lm.y.toFixed(6),lm.z.toFixed(6),(lm.visibility||0).toFixed(6),(lm.x*W).toFixed(2),(lm.y*H).toFixed(2)];
-    });
-    const wlmVals=s.worldLandmarks
-      ?s.worldLandmarks.flatMap((w,li)=>{
-          if(FACE_LM_INDICES.has(li)) return []; // 얼굴 랜드마크 제외
-          return [w.x.toFixed(6),w.y.toFixed(6),w.z.toFixed(6)];
-        })
-      :Array((LANDMARK_NAMES.length-FACE_LM_INDICES.size)*3).fill("");
-    const featVals=[
-      f.heightPx.toFixed(2),
-      ...distKeys.map(k=>f.distances[k].px),
-      ...distKeys.map(k=>f.distances[k].norm),
-      ...ratioKeys.map(k=>f.ratios[k]),
-      ...angleKeys.map(k=>f.angles[k])
-    ];
-    csv+=[si+1,s.timestamp,s.label,...lmVals,...wlmVals,...featVals].join(",")+"\n";
-  });
-  dl(csv,"body_type_ml_dataset.csv");
-}
-
-getCameras();
+  document.getElementById('progress').style.width = `${(1 / total) * 100}%`;
 </script>
 </body>
 </html>
