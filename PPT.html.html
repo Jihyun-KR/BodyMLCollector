@@ -1,0 +1,460 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Body Type ML Data Collector — 발표</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink:#f0006e; --cyan:#0077aa; --purple:#6d28d9;
+    --yellow:#d97706; --green:#059669;
+    --bg:#f5f3ff; --surface:#ffffff; --surface2:#ede9fe;
+    --border:#c4b5fd; --text:#0f0825; --muted:#4c3d8a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #progress {
+    position: fixed; top: 0; left: 0; height: 4px;
+    background: linear-gradient(90deg, var(--pink), var(--purple), var(--cyan));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  #slides {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 44px 60px;
+    opacity: 0;
+    transform: translateX(60px);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 40% at 10% 0%, rgba(240,0,110,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 35% at 90% 100%, rgba(0,153,204,0.08) 0%, transparent 55%),
+      linear-gradient(160deg, #f5f3ff 0%, #fdf4ff 50%, #f0f9ff 100%);
+  }
+  .slide.active { opacity: 1; transform: translateX(0); pointer-events: all; }
+  .slide.prev { opacity: 0; transform: translateX(-60px); }
+
+  #nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 40px;
+    background: var(--surface);
+    border-top: 2px solid var(--border);
+    position: relative; z-index: 60;
+  }
+  .nav-btn {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    color: var(--purple); padding: 8px 22px; border-radius: 8px;
+    font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover { background: var(--purple); color: #fff; border-color: var(--purple); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  #slideNum { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+  /* ── Slide styles ── */
+  .tag {
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--purple); background: rgba(109,40,217,0.1);
+    border: 1.5px solid rgba(109,40,217,0.35);
+    padding: 5px 14px; border-radius: 20px; margin-bottom: 16px;
+    font-weight: 700;
+  }
+  .slide-title {
+    font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800;
+    line-height: 1.15; text-align: center; margin-bottom: 14px;
+    color: var(--text);
+  }
+  .gradient-text {
+    background: linear-gradient(135deg, var(--pink), var(--purple), var(--cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .slide-sub {
+    font-size: 16px; color: var(--muted); text-align: center;
+    max-width: 600px; line-height: 1.8; font-weight: 500;
+  }
+
+  .cards { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+  .card {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 14px; padding: 22px 24px; min-width: 200px; max-width: 230px;
+    box-shadow: 0 4px 20px rgba(124,58,237,0.1); transition: transform 0.2s;
+  }
+  .card:hover { transform: translateY(-4px); }
+  .card-icon { font-size: 30px; margin-bottom: 10px; }
+  .card-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; margin-bottom: 8px; color: var(--text); }
+  .card-desc { font-size: 12.5px; color: var(--muted); line-height: 1.7; font-weight: 500; }
+
+  .feat-list { list-style: none; margin-top: 10px; width: 100%; max-width: 720px; }
+  .feat-list li {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 11px 18px; margin-bottom: 8px;
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 14px; line-height: 1.6; font-weight: 500;
+    color: var(--text);
+  }
+  .feat-list li .num {
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 17px;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    min-width: 28px; padding-top: 1px;
+  }
+
+  .stats { display: flex; gap: 18px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+  .stat {
+    text-align: center; background: var(--surface);
+    border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 16px 24px;
+    box-shadow: 0 2px 12px rgba(124,58,237,0.1);
+  }
+  .stat-num {
+    font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800;
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+  .two-col { display: flex; gap: 26px; width: 100%; max-width: 820px; margin-top: 10px; }
+  .col { flex: 1; }
+  .col-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; margin-bottom: 10px; color: var(--purple); }
+  .col-item {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: var(--text); margin-bottom: 7px;
+    display: flex; align-items: flex-start; gap: 10px;
+    font-weight: 500; line-height: 1.5;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pink); flex-shrink: 0; margin-top: 5px; }
+  .dot.cyan { background: var(--cyan); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.green { background: var(--green); }
+
+  .title-decoration {
+    position: absolute; width: 300px; height: 300px; border-radius: 50%;
+    background: linear-gradient(135deg, rgba(240,0,110,0.12), rgba(124,58,237,0.12));
+    filter: blur(60px);
+  }
+  .td-1 { top: -80px; right: -80px; }
+  .td-2 { bottom: -80px; left: -80px; background: linear-gradient(135deg, rgba(0,153,204,0.12), rgba(124,58,237,0.08)); }
+
+  .chip {
+    display: inline-block; background: rgba(109,40,217,0.1);
+    border: 1.5px solid rgba(109,40,217,0.3); border-radius: 20px;
+    padding: 5px 14px; font-size: 13px; color: var(--purple); margin: 4px;
+    font-weight: 600;
+  }
+
+  .pipeline {
+    display: flex; align-items: center; gap: 0;
+    margin-top: 18px; flex-wrap: nowrap;
+  }
+  .pipe-step {
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 12px; padding: 14px 12px; min-width: 110px;
+    box-shadow: 0 2px 12px rgba(124,58,237,0.08);
+    position: relative;
+  }
+  .pipe-step.mine {
+    border-color: var(--pink); background: rgba(240,0,110,0.06);
+    transform: scale(1.08);
+    box-shadow: 0 4px 24px rgba(240,0,110,0.18);
+  }
+  .pipe-step.mine::after {
+    content: '← 본인 담당';
+    position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: var(--pink); font-weight: 700; white-space: nowrap;
+    background: rgba(240,0,110,0.1); border: 1px solid var(--pink);
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .pipe-icon { font-size: 26px; margin-bottom: 6px; }
+  .pipe-label { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800; text-align: center; color: var(--text); }
+  .pipe-sub { font-size: 10px; color: var(--muted); text-align: center; margin-top: 4px; line-height: 1.4; }
+  .pipe-arrow { font-size: 22px; color: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+  .demo-box {
+    background: #1e1040;
+    border: 2px solid var(--purple);
+    border-radius: 16px;
+    width: 580px; height: 200px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    box-shadow: 0 8px 40px rgba(109,40,217,0.25);
+    margin-top: 12px;
+  }
+  .demo-steps {
+    display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; justify-content: center;
+  }
+  .demo-step {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 8px 14px;
+    font-size: 12px; color: var(--text); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .demo-step-num {
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 800;
+    color: var(--pink);
+  }
+
+  .badge {
+    display: inline-block; background: rgba(240,0,110,0.1);
+    border: 1.5px solid rgba(240,0,110,0.4); border-radius: 6px;
+    padding: 2px 10px; font-size: 11px; color: var(--pink);
+    font-weight: 700; margin-left: 8px; vertical-align: middle;
+  }
+  .badge.green { background: rgba(5,150,105,0.1); border-color: rgba(5,150,105,0.4); color: var(--green); }
+
+  #keyhint {
+    position: fixed; bottom: 52px; right: 20px;
+    font-size: 11px; color: var(--muted); opacity: 0.5;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div id="slides">
+
+  <!-- Slide 1: Title -->
+  <div class="slide active" id="s1">
+    <div class="title-decoration td-1"></div>
+    <div class="title-decoration td-2"></div>
+    <div class="tag">ML Data Collection Tool</div>
+    <h1 class="slide-title">
+      <span class="gradient-text">Body Type</span><br>ML Data Collector
+    </h1>
+    <p class="slide-sub">MediaPipe Pose 기반 체형 분류 머신러닝용<br>실시간 신체 좌표 수집 도구</p>
+    <div style="margin-top:24px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+      <span class="chip">MediaPipe Pose</span>
+      <span class="chip">33 Landmarks</span>
+      <span class="chip">World 3D Coordinates</span>
+      <span class="chip">CSV Export</span>
+      <span class="chip">Browser-based</span>
+      <span class="chip">Privacy-first</span>
+    </div>
+  </div>
+
+  <!-- Slide 2: 팀 파이프라인 내 위치 -->
+  <div class="slide" id="s2">
+    <div class="tag">Pipeline</div>
+    <h2 class="slide-title" style="font-size:32px;">팀 파이프라인에서의 위치</h2>
+    <div class="pipeline">
+      <div class="pipe-step mine">
+        <div class="pipe-icon">📷</div>
+        <div class="pipe-label">데이터 수집</div>
+        <div class="pipe-sub">MediaPipe<br>CSV 출력</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">📐</div>
+        <div class="pipe-label">픽셀→cm<br>변환</div>
+        <div class="pipe-sub">RandomForest<br>보정</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🤖</div>
+        <div class="pipe-label">체형 분류</div>
+        <div class="pipe-sub">GMM<br>5가지 체형</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">👕</div>
+        <div class="pipe-label">스타일<br>추천</div>
+        <div class="pipe-sub">의류 매칭<br>알고리즘</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">
+        <div class="pipe-icon">🖥️</div>
+        <div class="pipe-label">UI 표시</div>
+        <div class="pipe-sub">Figma<br>서비스</div>
+      </div>
+    </div>
+    <p style="margin-top:22px; font-size:13px; color:var(--muted); text-align:center; line-height:1.8;">
+      데이터 수집 파트에서 출력되는 CSV가<br>이후 모든 파트의 <strong style="color:var(--pink);">학습 데이터 및 입력값</strong>으로 사용됩니다.
+    </p>
+  </div>
+
+  <!-- Slide 3: 문제 정의 -->
+  <div class="slide" id="s3">
+    <div class="tag">Problem</div>
+    <h2 class="slide-title" style="font-size:34px;">왜 만들었나요?</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">📐</div>
+        <div class="card-title">정확한 신체 좌표 필요</div>
+        <div class="card-desc">체형 분류 ML 모델 학습을 위한 정량적 신체 데이터가 필요했어요</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💸</div>
+        <div class="card-title">별도 장비 없이</div>
+        <div class="card-desc">3D 스캐너 없이 웹캠 하나로 수집 가능해야 했어요. 수동 측정은 오차와 확장성 문제가 있었어요</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">즉시 ML에 활용</div>
+        <div class="card-desc">수집과 동시에 피처 추출, CSV 저장까지 한 번에 — 후속 파트가 바로 쓸 수 있는 형태로</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 4: 솔루션 -->
+  <div class="slide" id="s4">
+    <div class="tag">Solution</div>
+    <h2 class="slide-title" style="font-size:34px;">어떻게 구현했나요?</h2>
+    <ul class="feat-list">
+      <li><span class="num">01</span><span>브라우저에서 바로 실행 — 설치 없이 HTML 파일 하나로 동작 <span class="badge">GitHub Pages 배포</span></span></li>
+      <li><span class="num">02</span><span>MediaPipe Pose로 실시간 33개 랜드마크 추출 및 스켈레톤 시각화</span></li>
+      <li><span class="num">03</span><span>자세 안정화 감지 → 자동 5초 카운트다운 캡처 <span class="badge">움직임 diff 기반</span></span></li>
+      <li><span class="num">04</span><span>줌 슬라이더 (0.3×~1.5×) — 카메라 거리와 상관없이 전신 촬영 가능</span></li>
+      <li><span class="num">05</span><span>Azure ML 바로 사용 가능한 Wide-format CSV 3종 다운로드 <span class="badge green">37개 피처 자동 계산</span></span></li>
+    </ul>
+  </div>
+
+  <!-- Slide 5: 수집 데이터 -->
+  <div class="slide" id="s5">
+    <div class="tag">Data Structure</div>
+    <h2 class="slide-title" style="font-size:30px;">수집되는 데이터 구조</h2>
+    <div class="stats" style="margin-bottom:16px;">
+      <div class="stat"><div class="stat-num">33</div><div class="stat-label">랜드마크<br>(2D + World 3D)</div></div>
+      <div class="stat"><div class="stat-num">19</div><div class="stat-label">거리 피처</div></div>
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">관절 각도</div></div>
+      <div class="stat"><div class="stat-num">6</div><div class="stat-label">비율 피처</div></div>
+    </div>
+    <div class="two-col">
+      <div class="col">
+        <div class="col-title">📏 주요 거리 피처</div>
+        <div class="col-item"><span class="dot"></span>어깨폭 / 골반폭 / 가슴폭</div>
+        <div class="col-item"><span class="dot"></span>상체 길이 / 허벅지 / 정강이</div>
+        <div class="col-item"><span class="dot"></span>상복부 · 허리 · 하복부 너비 추정</div>
+        <div class="col-item"><span class="dot yellow"></span>목 길이 / 어깨~발목 거리 (신장 기준 정규화)</div>
+      </div>
+      <div class="col">
+        <div class="col-title">📐 비율 · 각도 피처</div>
+        <div class="col-item"><span class="dot cyan"></span>어깨/골반비 · 허리/골반비 (WHR)</div>
+        <div class="col-item"><span class="dot cyan"></span>어깨/허리비 · 상체/하체 비율</div>
+        <div class="col-item"><span class="dot cyan"></span>어깨 · 팔꿈치 · 무릎 관절 각도</div>
+        <div class="col-item"><span class="dot cyan"></span>척추 기울기 · 어깨선 · 골반선 각도</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 6: 시연 영상 -->
+  <div class="slide" id="s6">
+    <div class="tag">Demo</div>
+    <h2 class="slide-title" style="font-size:34px;">시연 영상</h2>
+    <video width="540" style="border-radius:14px;border:2px solid var(--purple);margin-top:10px;" controls>
+      <source src="demo.mp4" type="video/mp4">
+    </video>
+    <div class="demo-steps">
+      <div class="demo-step"><span class="demo-step-num">1</span> 동의 모달</div>
+      <div class="demo-step"><span class="demo-step-num">2</span> 카메라 + 스켈레톤</div>
+      <div class="demo-step"><span class="demo-step-num">3</span> 안정화 카운트다운</div>
+      <div class="demo-step"><span class="demo-step-num">4</span> 자동 캡처 + 수치</div>
+      <div class="demo-step"><span class="demo-step-num">5</span> 줌 기능</div>
+      <div class="demo-step"><span class="demo-step-num">6</span> CSV 다운로드</div>
+    </div>
+  </div>
+
+  <!-- Slide 7: 윤리 & 개인정보 -->
+  <div class="slide" id="s7">
+    <div class="tag">Ethics & Privacy</div>
+    <h2 class="slide-title" style="font-size:34px;">개인정보 보호 설계</h2>
+    <div class="two-col" style="margin-top:14px;">
+      <div class="col">
+        <div class="col-title">🔒 개인정보보호법 대응</div>
+        <div class="col-item"><span class="dot"></span>수집 전 동의 모달 — 목적·보유기간·제3자 제공 고지</div>
+        <div class="col-item"><span class="dot"></span>얼굴 랜드마크(눈·코·입·귀) CSV 저장 제외</div>
+        <div class="col-item"><span class="dot"></span>영상은 브라우저 내 처리만 — 서버 전송 없음</div>
+        <div class="col-item"><span class="dot"></span>좌표값만 저장 — 이미지 미저장, 삭제권 보장</div>
+      </div>
+      <div class="col">
+        <div class="col-title">⚖️ AI 윤리 준수</div>
+        <div class="col-item"><span class="dot cyan"></span>체형 라벨링 — 차별적 표현 배제, 중립적 분류</div>
+        <div class="col-item"><span class="dot cyan"></span>데이터 편향 최소화 — 다양한 체형 균형 수집</div>
+        <div class="col-item"><span class="dot cyan"></span>추천 결과 — 특정 체형 비하 없는 중립 표현</div>
+        <div class="col-item"><span class="dot cyan"></span>동의 거부 시 카메라 미작동 — 선택권 보장</div>
+      </div>
+    </div>
+    <p style="margin-top:16px; font-size:12px; color:var(--muted); text-align:center;">
+      📌 개인정보보호법 제15조 · AI 기본법 윤리 원칙 — <strong style="color:var(--purple);">기획 초기부터 설계에 반영</strong>
+    </p>
+  </div>
+
+  <!-- Slide 8: 마무리 -->
+  <div class="slide" id="s8">
+    <div class="title-decoration td-1"></div>
+    <div class="title-decoration td-2"></div>
+    <div class="tag">Summary</div>
+    <h2 class="slide-title" style="font-size:36px;">
+      <span class="gradient-text">데이터 수집 파트</span><br>완성 및 파이프라인 연결 완료
+    </h2>
+    <div class="stats" style="margin-top:20px;">
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">수집 툴 완성<br>Github Pages 라이브 실행 가능</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">37개 피처<br>자동 추출</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">개인정보 보호<br>설계 완료</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:22px;">✅</div><div class="stat-label">CSV 출력<br>Azure ML 연동 완료</div></div>
+    </div>
+    <p style="margin-top:22px; font-size:14px; color:var(--muted); text-align:center; line-height:2;">
+      설계 · 구현 · 윤리 설계 · 팀 파이프라인 연동 — <strong style="color:var(--purple);">전 과정 단독 개발</strong>
+    </p>
+  </div>
+
+</div>
+
+<!-- Nav — 대본 버튼 없음 -->
+<div id="nav">
+  <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)" disabled>← 이전</button>
+  <span id="slideNum">1 / 8</span>
+  <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">다음 →</button>
+</div>
+
+<div id="keyhint">← → 키보드 이동</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let cur = 0;
+
+  function changeSlide(dir) {
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('prev');
+    setTimeout(() => slides[cur].classList.remove('prev'), 500);
+    cur = Math.max(0, Math.min(total - 1, cur + dir));
+    slides[cur].classList.add('active');
+    document.getElementById('slideNum').innerText = `${cur + 1} / ${total}`;
+    document.getElementById('prevBtn').disabled = cur === 0;
+    document.getElementById('nextBtn').disabled = cur === total - 1;
+    document.getElementById('progress').style.width = `${((cur + 1) / total) * 100}%`;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') changeSlide(1);
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') changeSlide(-1);
+  });
+
+  document.getElementById('progress').style.width = `${(1 / total) * 100}%`;
+</script>
+</body>
+</html>
